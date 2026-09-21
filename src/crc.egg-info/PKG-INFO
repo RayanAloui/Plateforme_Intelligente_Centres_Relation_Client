@@ -1,0 +1,5 @@
+Metadata-Version: 2.4
+Name: crc
+Version: 0.1.0
+Summary: Plateforme intelligente de prevision, optimisation et gestion des risques - centres de relation client
+Requires-Python: >=3.11
