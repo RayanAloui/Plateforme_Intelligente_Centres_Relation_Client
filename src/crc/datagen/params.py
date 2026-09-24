@@ -67,6 +67,37 @@ class EventParams:
 
 
 @dataclass(frozen=True)
+class OperationsParams:
+    # --- Planificateur (strategie "baseline") ----------------------------------
+    planning_error_sigma: float = 0.05       # erreur journaliere de prevision (log)
+    planner_target_sl: float = 0.80          # standard 80/20 du secteur
+    sla_target_seconds: float = 20.0
+    planner_shrinkage: float = 0.06          # marge prevue pour les absences
+    min_agents: int = 2
+    max_agents: int = 60                     # coherent avec ref.cost_parameters
+
+    # --- Absences ----------------------------------------------------------------
+    absence_by_season: tuple[tuple[str, float], ...] = (
+        ("Hiver", 0.080), ("Printemps", 0.060), ("Ete", 0.045), ("Automne", 0.065),
+    )
+    absence_day_sigma: float = 0.25          # variabilite journaliere (log)
+    exceptional_absence_rate_per_year: float = 3.0
+    exceptional_absence_extra: tuple[float, float] = (0.15, 0.30)
+
+    # --- Comportement client -------------------------------------------------------
+    patience_mean_seconds: float = 180.0
+    wait_noise_sigma: float = 0.15
+
+    # --- Satisfaction -------------------------------------------------------------------
+    csat_base: float = 4.4
+    csat_wait_coef: float = 0.006            # points perdus par seconde d'attente
+    csat_abandon_coef: float = 1.5
+    csat_noise_sd: float = 0.3
+    csat_response_rate: float = 0.08
+
+
+@dataclass(frozen=True)
 class GeneratorParams:
     demand: DemandParams = field(default_factory=DemandParams)
     events: EventParams = field(default_factory=EventParams)
+    operations: OperationsParams = field(default_factory=OperationsParams)

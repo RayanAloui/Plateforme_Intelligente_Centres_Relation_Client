@@ -102,10 +102,11 @@ def generate_demand(
     hour = calendar["hour"].to_numpy()
     night = (hour < 7) | (hour >= 22)
     s = p.aht_noise_sigma
-    aht = (p.aht_base_seconds
-           * (1 + p.aht_annual_trend) ** years
-           * np.where(night, p.aht_night_factor, 1.0)
-           * np.where(calendar["is_weekend"], p.aht_weekend_factor, 1.0)
+    aht_expected = (p.aht_base_seconds
+                    * (1 + p.aht_annual_trend) ** years
+                    * np.where(night, p.aht_night_factor, 1.0)
+                    * np.where(calendar["is_weekend"], p.aht_weekend_factor, 1.0))
+    aht = (aht_expected
            * np.where(is_incident, p.aht_incident_factor, 1.0)
            * rngs["aht"].lognormal(-s**2 / 2, s, len(ts)))
 
@@ -117,5 +118,6 @@ def generate_demand(
         "lambda_true": lam_true,
         "is_incident": is_incident,
         "offered": offered.astype(int),
+        "aht_expected": aht_expected,
         "aht_seconds": aht,
     })
