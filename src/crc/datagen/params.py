@@ -95,9 +95,19 @@ class OperationsParams:
     csat_noise_sd: float = 0.3
     csat_response_rate: float = 0.08
 
+@dataclass(frozen=True)
+class DefectParams:
+    """Imperfections injectees dans la couche raw (taux par ligne)."""
+    missing_rows_acd: float = 0.003          # intervalles absents de l'export ACD
+    missing_rows_wfm: float = 0.002          # intervalles absents de l'export WFM
+    missing_cells: float = 0.005             # cellules vides dans l'export ACD
+    duplicate_rows: float = 0.002            # lignes exportees deux fois
+    outlier_rows: float = 0.001              # valeurs aberrantes (erreur de saisie, capteur)
+    alt_timestamp_format: float = 0.02       # horodatage au format JJ/MM/AAAA HH:MM
 
 @dataclass(frozen=True)
 class GeneratorParams:
     demand: DemandParams = field(default_factory=DemandParams)
     events: EventParams = field(default_factory=EventParams)
     operations: OperationsParams = field(default_factory=OperationsParams)
+    defects: DefectParams = field(default_factory=DefectParams)

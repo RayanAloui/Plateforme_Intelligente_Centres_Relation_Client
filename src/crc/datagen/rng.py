@@ -1,7 +1,7 @@
 """Flux aleatoires independants, derives d'une seule graine."""
 import numpy as np
 
-STREAMS = ("events", "days", "arrivals", "aht", "staffing", "absence", "queue", "noise")
+STREAMS = ("events", "days", "arrivals", "aht", "staffing", "absence", "queue", "noise", "defects")
 
 
 def make_rngs(seed: int) -> dict[str, np.random.Generator]:
