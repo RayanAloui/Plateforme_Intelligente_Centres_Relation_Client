@@ -17,7 +17,7 @@ from crc.forecasting.features import campaign_flag
 ORDER = (1, 0, 1)
 SEASONAL_ORDER = (1, 1, 1, 7)                  # saisonnalite hebdomadaire
 EXOG = ["is_holiday", "post_holiday", "is_school_holiday", "campaign", "doy_sin", "doy_cos"]
-PROFILE_WEEKS = 4
+PROFILE_WEEKS = 12
 
 
 def daily_frame(df: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
@@ -73,6 +73,12 @@ def intraday_profile(df: pd.DataFrame) -> pd.DataFrame:
         lambda g: g.shift(1).rolling(PROFILE_WEEKS, min_periods=1).mean())
     return profile.div(profile.sum(axis=1), axis=0)
 
+def daily_level(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
+    """Niveau prevu du jour, ramene a la demi-heure (total prevu / nombre d'intervalles)."""
+    totals = daily_forecast(daily_frame(df, events), train_end)
+    periods_per_day = int(df["period_index"].max()) + 1
+    return pd.Series(totals.reindex(pd.to_datetime(df["date"])).to_numpy() / periods_per_day,
+                     index=df.index, name="daily_level")
 
 def top_down_forecast(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
     """Prevision a la demi-heure = total journalier prevu x profil prevu."""

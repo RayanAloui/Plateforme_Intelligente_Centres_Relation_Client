@@ -13,6 +13,7 @@ from crc.db import read_sql
 from crc.forecasting.baselines import baselines
 from crc.forecasting.features import build_features
 from crc.forecasting.metrics import comparison_table
+from crc.forecasting.ml import HybridForecaster, lightgbm_direct
 from crc.forecasting.statistical import top_down_forecast
 from crc.splits import SPLITS, select
 
@@ -38,6 +39,8 @@ def run() -> pd.DataFrame:
     # Modeles entraines uniquement sur la periode d'entrainement
     train_end = SPLITS["validation"][0]
     predictions["SARIMAX journalier + profil"] = top_down_forecast(df, events, train_end)
+    predictions["LightGBM direct"] = lightgbm_direct(df, X, train_end)
+    predictions["Hybride SARIMAX + LightGBM"] = HybridForecaster().fit(df, X, events, train_end).predict(X)
 
     # Reference theorique : un oracle qui connaitrait l'intensite reelle.
     # Aucun modele ne peut faire mieux en moyenne : c'est le hasard irreductible.
