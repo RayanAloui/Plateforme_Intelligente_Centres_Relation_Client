@@ -13,7 +13,8 @@ from crc.db import read_sql
 from crc.forecasting.baselines import baselines
 from crc.forecasting.features import build_features
 from crc.forecasting.metrics import comparison_table
-from crc.splits import select
+from crc.forecasting.statistical import top_down_forecast
+from crc.splits import SPLITS, select
 
 TRUTH = Path("data/truth/ground_truth.parquet")
 REPORT = Path("outputs/forecast_comparison.csv")
@@ -33,6 +34,10 @@ def run() -> pd.DataFrame:
     y = val["offered"]
 
     predictions = baselines(X)
+
+    # Modeles entraines uniquement sur la periode d'entrainement
+    train_end = SPLITS["validation"][0]
+    predictions["SARIMAX journalier + profil"] = top_down_forecast(df, events, train_end)
 
     # Reference theorique : un oracle qui connaitrait l'intensite reelle.
     # Aucun modele ne peut faire mieux en moyenne : c'est le hasard irreductible.
