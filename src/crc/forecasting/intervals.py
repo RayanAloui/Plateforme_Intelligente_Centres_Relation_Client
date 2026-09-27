@@ -19,7 +19,6 @@ import pandas as pd
 from crc.forecasting.compare import load_inputs
 from crc.forecasting.ml import HybridForecaster
 from crc.forecasting.probabilistic import CoxPredictive, poisson_quantiles
-from crc.forecasting.statistical import daily_level
 from crc.splits import SPLITS
 
 START, CALIB_END, END = pd.Timestamp("2023-07-01"), SPLITS["validation"][0], SPLITS["test"][0]
@@ -32,8 +31,7 @@ def rolling_forecast(df, events, X, start, end) -> pd.Series:
     parts = []
     months = pd.date_range(start, end, freq="MS")
     for m0, m1 in zip(months[:-1], months[1:]):
-        level = daily_level(df, events, m0)
-        p = HybridForecaster().fit(df, X, events, m0, level).predict(X)
+        p = HybridForecaster().fit(df, X, events, m0).predict(X)
         parts.append(p[(p.index >= m0) & (p.index < m1)])
     return pd.concat(parts)
 

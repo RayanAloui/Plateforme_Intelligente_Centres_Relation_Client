@@ -1,0 +1,73 @@
+{
+  "version": "forecast_20240701",
+  "cree_le": "2026-09-27T21:45:19",
+  "donnees": {
+    "coupure": "2024-07-01",
+    "debut_historique": "2022-01-01",
+    "empreinte": "2020cfe001fd"
+  },
+  "modele_champion": {
+    "nom": "Hybride SARIMAX + LightGBM",
+    "sarimax": {
+      "ordre": [
+        1,
+        0,
+        1
+      ],
+      "ordre_saisonnier": [
+        1,
+        1,
+        1,
+        7
+      ],
+      "cible": "log(total journalier)"
+    },
+    "lightgbm": {
+      "objective": "poisson",
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "num_leaves": 31,
+      "min_child_samples": 40,
+      "subsample": 0.8,
+      "subsample_freq": 1,
+      "colsample_bytree": 0.8,
+      "random_state": 0
+    },
+    "variables_lightgbm": [
+      "period",
+      "dow",
+      "month",
+      "is_weekend",
+      "is_holiday",
+      "is_school_holiday",
+      "post_holiday",
+      "period_sin",
+      "period_cos",
+      "doy_sin",
+      "doy_cos",
+      "campaign"
+    ],
+    "profil_intra_journalier_semaines": 12
+  },
+  "incertitude": {
+    "modele": "processus de Cox",
+    "sigma_jour": 0.0913,
+    "k_surdispersion": 50.84
+  },
+  "aht": {
+    "methode": "mediane des 8 memes demi-heures precedentes"
+  },
+  "detection_anomalies": {
+    "seuil_modere": 0.99,
+    "seuil_fort": 0.999
+  },
+  "performances_hors_echantillon": {
+    "periode": "2024-01-01 -> 2024-06-30",
+    "WAPE_%": 15.11,
+    "biais_%": -0.05,
+    "couverture_fourchette_80_%": 83.2
+  },
+  "secours": "Moyenne 4 semaines (si le champion echoue ou devient moins bon : derive)",
+  "politique": "reentrainement mensuel",
+  "periode_de_test": "non evaluee - reservee a l'experience finale"
+}

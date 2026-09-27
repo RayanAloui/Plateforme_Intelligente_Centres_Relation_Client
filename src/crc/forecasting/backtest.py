@@ -19,7 +19,7 @@ import pandas as pd
 from crc.forecasting.compare import TRUTH, load_inputs
 from crc.forecasting.metrics import evaluate
 from crc.forecasting.ml import HybridForecaster, lightgbm_direct
-from crc.forecasting.statistical import daily_level, top_down_forecast
+from crc.forecasting.statistical import daily_frame, daily_level, fit_daily_model, top_down_forecast
 from crc.splits import SPLITS
 
 FIRST_FOLD = pd.Timestamp("2023-07-01")
@@ -35,9 +35,10 @@ def folds() -> list[tuple[pd.Timestamp, pd.Timestamp]]:
 
 def forecast_fold(df, events, X, start) -> dict[str, pd.Series]:
     """Tous les modeles, entraines sur les donnees anterieures a `start`."""
-    level = daily_level(df, events, start)                      # un seul SARIMAX par pli
+    params = fit_daily_model(daily_frame(df, events), start)    # un seul SARIMAX par pli
+    level = daily_level(df, events, params=params)
     return {
-        "Hybride SARIMAX + LightGBM": HybridForecaster().fit(df, X, events, start, level).predict(X),
+        "Hybride SARIMAX + LightGBM": HybridForecaster().fit(df, X, events, start, params).predict(X),
         "SARIMAX journalier + profil": top_down_forecast(df, events, start, level),
         "LightGBM direct": lightgbm_direct(df, X, start),
         "Moyenne 4 semaines": X["mean_4w"],

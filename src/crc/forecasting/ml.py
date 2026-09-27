@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from crc.forecasting.features import FEATURES
-from crc.forecasting.statistical import daily_level
+from crc.forecasting.statistical import daily_frame, daily_level, fit_daily_model
 
 CATEGORICAL = ["period", "dow", "month"]
 # Les premieres semaines, le filtre SARIMAX et les retards ne sont pas encore
@@ -45,11 +45,18 @@ def lightgbm_direct(df: pd.DataFrame, X: pd.DataFrame, train_end: pd.Timestamp) 
 
 
 class HybridForecaster:
-    """Niveau du jour par SARIMAX x forme de la journee par LightGBM."""
+    """Niveau du jour par SARIMAX x forme de la journee par LightGBM.
+
+    Apres fit, le modele contient tout ce qu'il faut pour prevoir de nouvelles
+    journees : les parametres du SARIMAX (sarimax_params) et le LightGBM (model).
+    """
 
     def fit(self, df: pd.DataFrame, X: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp,
-            level: pd.Series | None = None):
-        self.level = daily_level(df, events, train_end) if level is None else level
+            params: pd.Series | None = None):
+        self.train_end = train_end
+        self.sarimax_params = (fit_daily_model(daily_frame(df, events), train_end)
+                               if params is None else params)
+        self.level = daily_level(df, events, params=self.sarimax_params)
         offset = np.log(self.level.clip(lower=0.5))
         mask = _train_mask(df, X, SHAPE_FEATURES, train_end)
         self.model = lgb.LGBMRegressor(**PARAMS).fit(
@@ -57,7 +64,11 @@ class HybridForecaster:
             init_score=offset[mask], categorical_feature=CATEGORICAL)
         return self
 
-    def predict(self, X: pd.DataFrame) -> pd.Series:
-        offset = np.log(self.level.reindex(X.index).clip(lower=0.5))
+    def predict(self, X: pd.DataFrame, df: pd.DataFrame | None = None,
+                events: pd.DataFrame | None = None) -> pd.Series:
+        """Sans df : sur les donnees d'entrainement. Avec df : sur de nouvelles donnees
+        (par exemple l'historique prolonge d'un jour futur), parametres figes."""
+        level = self.level if df is None else daily_level(df, events, params=self.sarimax_params)
+        offset = np.log(level.reindex(X.index).clip(lower=0.5))
         raw = self.model.predict(X[SHAPE_FEATURES], raw_score=True)
         return pd.Series(np.exp(raw + offset), index=X.index, name="hybride")

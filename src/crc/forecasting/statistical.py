@@ -4,7 +4,11 @@ Pourquoi deux etages ? Un SARIMA directement a la demi-heure devrait gerer une
 saisonnalite de 336 pas (une semaine), ce qui est tres lent et instable. La
 pratique du workforce management est de separer :
   1. combien d'appels dans la journee    -> SARIMAX sur le total journalier
-  2. comment ils se repartissent          -> profil moyen des 4 memes jours precedents
+  2. comment ils se repartissent          -> profil moyen des 12 memes jours precedents
+
+Le SARIMAX est separe en deux temps, pour pouvoir etre sauvegarde puis reutilise :
+  fit_daily_model    : estime les parametres (une fois, sur l'entrainement)
+  filter_daily_model : deroule le filtre de Kalman avec ces parametres figes
 """
 import warnings
 
@@ -16,14 +20,20 @@ from crc.forecasting.features import campaign_flag
 
 ORDER = (1, 0, 1)
 SEASONAL_ORDER = (1, 1, 1, 7)                  # saisonnalite hebdomadaire
+SPEC = dict(order=ORDER, seasonal_order=SEASONAL_ORDER, trend="c",
+            enforce_stationarity=False, enforce_invertibility=False)
 EXOG = ["is_holiday", "post_holiday", "is_school_holiday", "campaign", "doy_sin", "doy_cos"]
-PROFILE_WEEKS = 12
+PROFILE_WEEKS = 12                             # regle sur la validation (4 -> 16,4 %, 12 -> 15,5 %)
 
 
 def daily_frame(df: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
-    """Une ligne par jour : volume total et variables connues a l'avance."""
+    """Une ligne par jour : volume total et variables connues a l'avance.
+
+    Un jour futur (volumes inconnus, NaN) garde un total NaN : le filtre de Kalman
+    le traite comme une observation manquante et en produit la prevision.
+    """
     d = pd.DataFrame({
-        "total": df["offered"].groupby(df["date"]).sum().astype(float),
+        "total": df["offered"].groupby(df["date"]).sum(min_count=1).astype(float),
         "dow": df.groupby("date")["day_of_week"].first(),
         "is_holiday": df.groupby("date")["is_holiday"].first().astype(int),
         "is_school_holiday": df.groupby("date")["is_school_holiday"].first().astype(int),
@@ -39,27 +49,49 @@ def daily_frame(df: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
     return d
 
 
-def daily_forecast(daily: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
-    """Prevision a un pas (J+1) du total journalier pour toutes les dates.
-
-    Les parametres sont estimes sur l'entrainement uniquement, puis le filtre
-    de Kalman est deroule sur toute la serie : la prevision du jour D n'utilise
-    que les observations jusqu'a D-1 (plus le calendrier de D, connu a l'avance).
-    """
-    y = np.log(daily["total"])
-    X = daily[EXOG].astype(float)
+def fit_daily_model(daily: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
+    """Parametres du SARIMAX estimes sur les jours anterieurs a train_end."""
     train = daily.index < train_end
-    spec = dict(order=ORDER, seasonal_order=SEASONAL_ORDER, trend="c",
-                enforce_stationarity=False, enforce_invertibility=False)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        fitted = SARIMAX(y[train], exog=X[train], **spec).fit(disp=False, maxiter=200)
-        full = SARIMAX(y, exog=X, **spec).filter(fitted.params)
-    return np.exp(full.get_prediction().predicted_mean)
+        fitted = SARIMAX(np.log(daily.loc[train, "total"]), exog=daily.loc[train, EXOG].astype(float),
+                         **SPEC).fit(disp=False, maxiter=200)
+    return fitted.params
+
+
+def filter_daily_model(daily: pd.DataFrame, params: pd.Series) -> pd.Series:
+    """Prevision a un pas (J+1) de chaque jour, avec des parametres figes.
+
+    La prevision du jour D n'utilise que les observations jusqu'a D-1
+    (plus le calendrier de D, connu a l'avance).
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        res = SARIMAX(np.log(daily["total"]), exog=daily[EXOG].astype(float), **SPEC).filter(params)
+    return np.exp(res.get_prediction().predicted_mean)
+
+
+def daily_forecast(daily: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
+    return filter_daily_model(daily, fit_daily_model(daily, train_end))
+
+
+def daily_level(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp | None = None,
+                params: pd.Series | None = None) -> pd.Series:
+    """Niveau prevu du jour, ramene a la demi-heure (total prevu / nombre d'intervalles).
+
+    Fournir soit train_end (estimation des parametres), soit params (parametres deja estimes).
+    """
+    daily = daily_frame(df, events)
+    if params is None:
+        params = fit_daily_model(daily, train_end)
+    totals = filter_daily_model(daily, params)
+    periods_per_day = int(df["period_index"].max()) + 1
+    return pd.Series(totals.reindex(pd.to_datetime(df["date"])).to_numpy() / periods_per_day,
+                     index=df.index, name="daily_level")
 
 
 def intraday_profile(df: pd.DataFrame) -> pd.DataFrame:
-    """Part de chaque demi-heure dans la journee, estimee sur les 4 memes jours precedents.
+    """Part de chaque demi-heure dans la journee, estimee sur les memes jours precedents.
 
     Les jours feries sont regroupes avec les dimanches, dont ils partagent la forme.
     """
@@ -73,12 +105,6 @@ def intraday_profile(df: pd.DataFrame) -> pd.DataFrame:
         lambda g: g.shift(1).rolling(PROFILE_WEEKS, min_periods=1).mean())
     return profile.div(profile.sum(axis=1), axis=0)
 
-def daily_level(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
-    """Niveau prevu du jour, ramene a la demi-heure (total prevu / nombre d'intervalles)."""
-    totals = daily_forecast(daily_frame(df, events), train_end)
-    periods_per_day = int(df["period_index"].max()) + 1
-    return pd.Series(totals.reindex(pd.to_datetime(df["date"])).to_numpy() / periods_per_day,
-                     index=df.index, name="daily_level")
 
 def top_down_forecast(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp,
                       level: pd.Series | None = None) -> pd.Series:
