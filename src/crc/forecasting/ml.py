@@ -47,8 +47,9 @@ def lightgbm_direct(df: pd.DataFrame, X: pd.DataFrame, train_end: pd.Timestamp) 
 class HybridForecaster:
     """Niveau du jour par SARIMAX x forme de la journee par LightGBM."""
 
-    def fit(self, df: pd.DataFrame, X: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp):
-        self.level = daily_level(df, events, train_end)
+    def fit(self, df: pd.DataFrame, X: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp,
+            level: pd.Series | None = None):
+        self.level = daily_level(df, events, train_end) if level is None else level
         offset = np.log(self.level.clip(lower=0.5))
         mask = _train_mask(df, X, SHAPE_FEATURES, train_end)
         self.model = lgb.LGBMRegressor(**PARAMS).fit(

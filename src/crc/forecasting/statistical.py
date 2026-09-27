@@ -80,12 +80,17 @@ def daily_level(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp)
     return pd.Series(totals.reindex(pd.to_datetime(df["date"])).to_numpy() / periods_per_day,
                      index=df.index, name="daily_level")
 
-def top_down_forecast(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp) -> pd.Series:
-    """Prevision a la demi-heure = total journalier prevu x profil prevu."""
-    daily = daily_frame(df, events)
-    totals = daily_forecast(daily, train_end)
+def top_down_forecast(df: pd.DataFrame, events: pd.DataFrame, train_end: pd.Timestamp,
+                      level: pd.Series | None = None) -> pd.Series:
+    """Prevision a la demi-heure = niveau du jour prevu x profil prevu.
+
+    level (optionnel) : niveau deja calcule par daily_level, pour eviter de reestimer le SARIMAX.
+    """
+    if level is None:
+        level = daily_level(df, events, train_end)
     profile = intraday_profile(df)
+    periods_per_day = profile.shape[1]
     dates = pd.to_datetime(df["date"])
-    values = totals.reindex(dates).to_numpy() * profile.to_numpy()[
-        profile.index.get_indexer(dates), df["period_index"].to_numpy()]
-    return pd.Series(values, index=df.index, name="sarimax_top_down")
+    shares = profile.to_numpy()[profile.index.get_indexer(dates), df["period_index"].to_numpy()]
+    return pd.Series(level.to_numpy() * periods_per_day * shares, index=df.index,
+                     name="sarimax_top_down")
