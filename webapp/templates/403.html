@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Accès refusé{% endblock %}
+{% block page_title %}Accès refusé{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-lg text-center">
+  <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-rose-50 text-rose-600"><i data-lucide="shield-x" class="h-7 w-7"></i></span>
+  <h2 class="mt-4 text-xl font-semibold text-slate-900">Cette page est réservée à un autre rôle</h2>
+  <p class="mt-2 text-sm text-slate-500">Votre rôle actuel est <strong>{{ user.get_role_display }}</strong>. Contactez un administrateur si vous pensez avoir besoin de cet accès.</p>
+  <a href="{% url 'home' %}" class="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700">
+    <i data-lucide="arrow-left" class="h-4 w-4"></i>Retour à l'accueil</a>
+</div>
+{% endblock %}

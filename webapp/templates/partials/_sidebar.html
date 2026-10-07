@@ -1,0 +1,47 @@
+{# Barre laterale : fixe sur grand ecran, tiroir sur mobile #}
+<div x-show="sidebar" x-transition.opacity class="fixed inset-0 z-40 bg-slate-900/60 lg:hidden" @click="sidebar = false" x-cloak></div>
+<aside class="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-slate-900 text-slate-300 transition-transform duration-200 lg:translate-x-0"
+       :class="sidebar ? 'translate-x-0' : '-translate-x-full'">
+  <a href="{% url 'home' %}" class="flex items-center gap-3 px-6 py-5">
+    <span class="grid h-9 w-9 place-items-center rounded-lg bg-brand-600 text-white"><i data-lucide="activity" class="h-5 w-5"></i></span>
+    <span>
+      <span class="block text-base font-semibold text-white">Pilote CRC</span>
+      <span class="block text-xs text-slate-400">Centres de relation client</span>
+    </span>
+  </a>
+  <nav class="flex-1 space-y-6 overflow-y-auto px-3 py-4">
+    {% for title, items in menu %}
+    <div>
+      <p class="px-3 pb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{{ title }}</p>
+      <ul class="space-y-1">
+        {% for item in items %}
+        <li>
+          <a href="{% url item.url_name %}"
+             class="group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition
+                    {% if active_page == item.url_name %}bg-white/10 text-white{% else %}hover:bg-white/5 hover:text-white{% endif %}"
+             {% if active_page == item.url_name %}aria-current="page"{% endif %}>
+            <i data-lucide="{{ item.icon }}" class="h-4 w-4 shrink-0 {% if active_page == item.url_name %}text-brand-500{% else %}text-slate-500 group-hover:text-slate-300{% endif %}"></i>
+            <span class="flex-1">{{ item.label }}</span>
+            {% if item.step %}<span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">bientôt</span>{% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endfor %}
+  </nav>
+  <div class="border-t border-white/10 p-4">
+    <div class="flex items-center gap-3">
+      <span class="grid h-9 w-9 place-items-center rounded-full bg-brand-600 text-sm font-semibold text-white">{{ user.initials }}</span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-sm font-medium text-white">{{ user.display_name }}</p>
+        <p class="text-xs text-slate-400">{{ user.get_role_display }}</p>
+      </div>
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+        <button type="submit" title="Se déconnecter" class="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white">
+          <i data-lucide="log-out" class="h-4 w-4"></i><span class="sr-only">Se déconnecter</span>
+        </button>
+      </form>
+    </div>
+  </div>
+</aside>

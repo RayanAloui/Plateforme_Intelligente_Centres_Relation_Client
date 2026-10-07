@@ -11,3 +11,4 @@ outputs/
 *.egg-info/
 .DS_Store
 models/*.joblib
+staticfiles/

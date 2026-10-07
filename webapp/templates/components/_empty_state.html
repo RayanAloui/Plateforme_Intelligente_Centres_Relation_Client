@@ -1,0 +1,6 @@
+{# Usage : {% include "components/_empty_state.html" with icon="..." title="..." text="..." %} #}
+<div class="flex flex-col items-center rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+  <span class="grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="{{ icon }}" class="h-6 w-6"></i></span>
+  <h3 class="mt-4 text-base font-semibold text-slate-900">{{ title }}</h3>
+  <p class="mt-1 max-w-md text-sm text-slate-500">{{ text }}</p>
+</div>

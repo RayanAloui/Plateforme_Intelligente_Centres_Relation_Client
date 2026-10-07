@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Connexion{% endblock %}
+{% block body %}
+<div class="grid min-h-screen lg:grid-cols-2">
+  <section class="relative hidden overflow-hidden bg-gradient-to-br from-brand-900 via-slate-900 to-slate-800 p-12 text-white lg:flex lg:flex-col lg:justify-between">
+    <div class="flex items-center gap-3">
+      <span class="grid h-10 w-10 place-items-center rounded-lg bg-brand-600"><i data-lucide="activity" class="h-5 w-5"></i></span>
+      <span class="text-lg font-semibold">Pilote CRC</span>
+    </div>
+    <div>
+      <h1 class="text-4xl font-semibold leading-tight">Le bon nombre d'agents,<br>au bon moment,<br><span class="text-brand-100/80">même les mauvais jours.</span></h1>
+      <p class="mt-4 max-w-md text-slate-300">Prévision par IA, risque chiffré en euros et planning optimisé pour les centres de relation client.</p>
+      <ol class="mt-10 grid max-w-md grid-cols-2 gap-4 text-sm">
+        <li class="rounded-xl bg-white/5 p-4"><i data-lucide="chart-spline" class="mb-2 h-5 w-5 text-brand-100"></i>Prévoir la demande</li>
+        <li class="rounded-xl bg-white/5 p-4"><i data-lucide="sigma" class="mb-2 h-5 w-5 text-brand-100"></i>Quantifier l'incertitude</li>
+        <li class="rounded-xl bg-white/5 p-4"><i data-lucide="shield-alert" class="mb-2 h-5 w-5 text-brand-100"></i>Évaluer le risque</li>
+        <li class="rounded-xl bg-white/5 p-4"><i data-lucide="calendar-check" class="mb-2 h-5 w-5 text-brand-100"></i>Décider le planning</li>
+      </ol>
+    </div>
+    <p class="text-xs text-slate-500">PFA · Plateforme intelligente de prévision, d'optimisation et de gestion des risques</p>
+  </section>
+
+  <section class="flex items-center justify-center px-6 py-12">
+    <div class="w-full max-w-sm">
+      <div class="mb-8 flex items-center gap-3 lg:hidden">
+        <span class="grid h-10 w-10 place-items-center rounded-lg bg-brand-600 text-white"><i data-lucide="activity" class="h-5 w-5"></i></span>
+        <span class="text-lg font-semibold">Pilote CRC</span>
+      </div>
+      <h2 class="text-2xl font-semibold text-slate-900">Connexion</h2>
+      <p class="mt-1 text-sm text-slate-500">Accédez à votre espace de pilotage.</p>
+
+      {% if form.errors %}
+      <div class="mt-6 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+        <i data-lucide="circle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+        Identifiant ou mot de passe incorrect.
+      </div>
+      {% endif %}
+
+      <form method="post" class="mt-6 space-y-5" x-data="{ show: false, loading: false }" @submit="loading = true">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ next }}">
+        <div>
+          <label for="id_username" class="block text-sm font-medium text-slate-700">Identifiant</label>
+          <input id="id_username" name="username" type="text" autocomplete="username" required autofocus
+                 value="{{ form.username.value|default:'' }}"
+                 class="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100">
+        </div>
+        <div>
+          <label for="id_password" class="block text-sm font-medium text-slate-700">Mot de passe</label>
+          <div class="relative mt-1.5">
+            <input id="id_password" name="password" :type="show ? 'text' : 'password'" type="password" autocomplete="current-password" required
+                   class="block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 pr-10 text-sm shadow-sm outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100">
+            <button type="button" @click="show = !show" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600" :aria-label="show ? 'Masquer' : 'Afficher'">
+              <i data-lucide="eye" class="h-4 w-4"></i>
+            </button>
+          </div>
+        </div>
+        <button type="submit" :disabled="loading"
+                class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-700 disabled:opacity-60">
+          <span x-show="!loading">Se connecter</span><span x-show="loading" x-cloak>Connexion…</span>
+        </button>
+      </form>
+
+      {% if demo_mode %}
+      <div class="mt-8 rounded-xl border border-slate-200 bg-white p-4 text-sm">
+        <p class="font-medium text-slate-700">Comptes de démonstration</p>
+        <ul class="mt-2 space-y-1 text-slate-500">
+          <li><code class="text-slate-700">manager</code> · Manager</li>
+          <li><code class="text-slate-700">planificateur</code> · Planificateur</li>
+          <li><code class="text-slate-700">admin</code> · Administrateur</li>
+        </ul>
+      </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

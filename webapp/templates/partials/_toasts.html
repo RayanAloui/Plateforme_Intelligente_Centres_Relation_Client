@@ -1,0 +1,14 @@
+{% if messages %}
+<div class="pointer-events-none fixed right-4 top-20 z-[60] space-y-2">
+  {% for message in messages %}
+  <div x-data="{ show: true }" x-init="setTimeout(() => show = false, 4500)" x-show="show" x-transition
+       class="pointer-events-auto flex w-80 items-start gap-3 rounded-xl border bg-white p-4 shadow-lg
+              {% if message.tags == 'error' %}border-rose-200{% elif message.tags == 'warning' %}border-amber-200{% else %}border-emerald-200{% endif %}">
+    <i data-lucide="{% if message.tags == 'error' %}circle-alert{% elif message.tags == 'warning' %}triangle-alert{% else %}circle-check{% endif %}"
+       class="mt-0.5 h-5 w-5 shrink-0 {% if message.tags == 'error' %}text-rose-500{% elif message.tags == 'warning' %}text-amber-500{% else %}text-emerald-500{% endif %}"></i>
+    <p class="flex-1 text-sm text-slate-700">{{ message }}</p>
+    <button type="button" @click="show = false" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="h-4 w-4"></i></button>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

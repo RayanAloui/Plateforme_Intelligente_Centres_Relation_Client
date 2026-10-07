@@ -1,0 +1,53 @@
+{% load static %}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title|default:"Pilote CRC" }}{% endblock %} · Pilote CRC</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <script src="{% static 'vendor/tailwind.js' %}"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --color-brand-50: #eef2ff; --color-brand-100: #e0e7ff; --color-brand-500: #6366f1;
+      --color-brand-600: #4f46e5; --color-brand-700: #4338ca; --color-brand-900: #1e1b4b;
+    }
+  </style>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+  <script src="{% static 'vendor/htmx.min.js' %}" defer></script>
+  <script src="{% static 'vendor/alpine.min.js' %}" defer></script>
+  <script src="{% static 'vendor/lucide.min.js' %}"></script>
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="h-full bg-slate-50 text-slate-800 antialiased" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% block body %}
+<div x-data="{ sidebar: false }" class="min-h-screen">
+  {% include "partials/_sidebar.html" %}
+  <div class="lg:pl-64">
+    {# Barre superieure (dans base.html pour que le bloc page_title soit surchargeable) #}
+    <header class="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6 lg:px-8">
+      <button type="button" class="rounded-lg p-2 text-slate-500 hover:bg-slate-100 lg:hidden" @click="sidebar = true">
+        <i data-lucide="menu" class="h-5 w-5"></i><span class="sr-only">Ouvrir le menu</span>
+      </button>
+      <h1 class="flex-1 truncate text-lg font-semibold text-slate-900">{% block page_title %}{{ page_title }}{% endblock %}</h1>
+      {% if data_last %}
+      <span class="hidden items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 sm:inline-flex"
+            title="Dernière demi-heure disponible dans la base">
+        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>Données au {{ data_last|date:"d/m/Y H:i" }}
+      </span>
+      {% else %}
+      <span class="hidden items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 sm:inline-flex">
+        <i data-lucide="database" class="h-3.5 w-3.5"></i>Aucune donnée chargée
+      </span>
+      {% endif %}
+    </header>
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}
+{% include "partials/_toasts.html" %}
+<script src="{% static 'js/app.js' %}"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

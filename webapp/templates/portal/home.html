@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Accueil{% endblock %}
+{% block page_title %}Accueil{% endblock %}
+{% block content %}
+<div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+  <div>
+    <h2 class="text-2xl font-semibold text-slate-900">{{ greeting }} {{ user.first_name|default:user.username }}</h2>
+    <p class="mt-1 text-sm text-slate-500">{{ role_description }}</p>
+  </div>
+  <span class="inline-flex w-fit items-center gap-2 rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+    <i data-lucide="badge-check" class="h-3.5 w-3.5"></i>{{ user.get_role_display }}
+  </span>
+</div>
+
+{# Etat des donnees #}
+<section class="mt-8">
+  {% if data.available %}
+  <div class="grid gap-4 sm:grid-cols-3">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Historique disponible</p>
+      <p class="mt-2 text-xl font-semibold text-slate-900">{{ data.first|date:"d/m/Y" }} → {{ data.last|date:"d/m/Y" }}</p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Demi-heures analysées</p>
+      <p class="mt-2 text-xl font-semibold text-slate-900">{{ data.intervals|floatformat:"0g" }}</p>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Dernière donnée</p>
+      <p class="mt-2 text-xl font-semibold text-slate-900">{{ data.last|date:"l d F, H:i" }}</p>
+    </div>
+  </div>
+  {% else %}
+  {% include "components/_empty_state.html" with icon="database" title="Aucune donnée dans la base" text="Lancez « python -m crc.rebuild » depuis la racine du projet pour générer et nettoyer l'historique." %}
+  {% endif %}
+</section>
+
+{# La démarche en quatre questions #}
+<section class="mt-10">
+  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-500">La démarche</h3>
+  <ol class="mt-4 grid gap-4 md:grid-cols-4">
+    <li class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span class="text-xs font-semibold text-brand-600">1 · Prévoir</span><p class="mt-2 font-medium text-slate-900">Que va-t-il se passer ?</p><p class="mt-1 text-sm text-slate-500">Prévision à J+1 et sa fourchette.</p></li>
+    <li class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span class="text-xs font-semibold text-brand-600">2 · Quantifier</span><p class="mt-2 font-medium text-slate-900">Quelle incertitude ?</p><p class="mt-1 text-sm text-slate-500">Des milliers de scénarios simulés.</p></li>
+    <li class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span class="text-xs font-semibold text-brand-600">3 · Évaluer</span><p class="mt-2 font-medium text-slate-900">Quel risque, quel coût ?</p><p class="mt-1 text-sm text-slate-500">Perte attendue, VaR, Expected Shortfall.</p></li>
+    <li class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span class="text-xs font-semibold text-brand-600">4 · Décider</span><p class="mt-2 font-medium text-slate-900">Quelle meilleure décision ?</p><p class="mt-1 text-sm text-slate-500">Planning optimal sous contrainte de risque.</p></li>
+  </ol>
+</section>
+
+{# Accès rapides #}
+<section class="mt-10">
+  <h3 class="text-sm font-semibold uppercase tracking-wide text-slate-500">Accès rapides</h3>
+  <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {% for item in shortcuts %}
+    <a href="{% url item.url_name %}" class="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md">
+      <div class="flex items-start justify-between">
+        <span class="grid h-10 w-10 place-items-center rounded-lg bg-slate-100 text-slate-600 transition group-hover:bg-brand-50 group-hover:text-brand-600"><i data-lucide="{{ item.icon }}" class="h-5 w-5"></i></span>
+        {% if item.step %}<span class="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Étape {{ item.step }}</span>
+        {% else %}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Disponible</span>{% endif %}
+      </div>
+      <p class="mt-4 font-semibold text-slate-900">{{ item.label }}</p>
+      <p class="mt-1 text-sm text-slate-500">{{ item.summary }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
