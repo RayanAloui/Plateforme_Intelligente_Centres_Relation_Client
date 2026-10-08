@@ -4,10 +4,8 @@ from datetime import date, timedelta
 import holidays
 import pandas as pd
 
-from crc.config import get_settings
-from crc.db import execute, get_engine
-
-# Vacances scolaires - zone C (academie de Toulouse), approximation documentee.
+# Vacances scolaires - zone C (academie de Toulouse).
+# 2022-2026 : dates officielles. Au-dela : regle approchee (voir approximate_school_holidays).
 SCHOOL_HOLIDAYS: list[tuple[str, str]] = [
     ("2022-02-19", "2022-03-07"), ("2022-04-23", "2022-05-09"),
     ("2022-07-07", "2022-09-01"), ("2022-10-22", "2022-11-07"),
@@ -18,12 +16,47 @@ SCHOOL_HOLIDAYS: list[tuple[str, str]] = [
     ("2024-02-17", "2024-03-04"), ("2024-04-06", "2024-04-22"),
     ("2024-07-06", "2024-09-02"), ("2024-10-19", "2024-11-04"),
     ("2024-12-21", "2025-01-06"),
+    ("2025-02-15", "2025-03-03"), ("2025-04-12", "2025-04-28"),
+    ("2025-07-05", "2025-09-01"), ("2025-10-18", "2025-11-03"),
+    ("2025-12-20", "2026-01-05"),
+    ("2026-02-21", "2026-03-09"), ("2026-04-18", "2026-05-04"),
+    ("2026-07-04", "2026-09-01"), ("2026-10-17", "2026-11-02"),
+    ("2026-12-19", "2027-01-04"),
 ]
+KNOWN_UNTIL_YEAR = 2026
 
 DAY_NAMES = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 SEASONS = {12: "Hiver", 1: "Hiver", 2: "Hiver", 3: "Printemps", 4: "Printemps",
            5: "Printemps", 6: "Ete", 7: "Ete", 8: "Ete", 9: "Automne",
            10: "Automne", 11: "Automne"}
+
+
+def _saturday_near(d: date) -> date:
+    """Samedi le plus proche d'une date."""
+    return d + timedelta(days=(5 - d.weekday() + 3) % 7 - 3)
+
+
+def approximate_school_holidays(year: int) -> list[tuple[str, str]]:
+    """Dates indicatives pour les annees non encore publiees : memes periodes que d'habitude."""
+    periods = [
+        (_saturday_near(date(year, 2, 18)), 16),        # hiver
+        (_saturday_near(date(year, 4, 15)), 16),        # printemps
+        (_saturday_near(date(year, 7, 5)), None),       # ete, jusqu'au 1er septembre
+        (_saturday_near(date(year, 10, 19)), 16),       # Toussaint
+        (_saturday_near(date(year, 12, 20)), 16),       # Noel
+    ]
+    out = []
+    for start, days in periods:
+        end = date(year, 9, 1) if days is None else start + timedelta(days=days)
+        out.append((start.isoformat(), end.isoformat()))
+    return out
+
+
+def school_holiday_periods(first_year: int, last_year: int) -> list[tuple[str, str]]:
+    periods = list(SCHOOL_HOLIDAYS)
+    for year in range(max(first_year, KNOWN_UNTIL_YEAR + 1), last_year + 1):
+        periods += approximate_school_holidays(year)
+    return periods
 
 
 def build_calendar(start: date, end: date, granularity_minutes: int) -> pd.DataFrame:
@@ -48,7 +81,7 @@ def build_calendar(start: date, end: date, granularity_minutes: int) -> pd.DataF
     df["is_holiday"] = df["holiday_name"].notna()
 
     school = pd.Series(False, index=df.index)
-    for h_start, h_end in SCHOOL_HOLIDAYS:
+    for h_start, h_end in school_holiday_periods(start.year - 1, end.year):
         school |= df["ts"].between(pd.Timestamp(h_start), pd.Timestamp(h_end) + timedelta(days=1))
     df["is_school_holiday"] = school
 
@@ -57,6 +90,9 @@ def build_calendar(start: date, end: date, granularity_minutes: int) -> pd.DataF
 
 
 def load_calendar() -> int:
+    from crc.config import get_settings
+    from crc.db import execute, get_engine
+
     s = get_settings()
     df = build_calendar(s.history_start_date, s.history_end_date, s.time_granularity_minutes)
     execute("TRUNCATE ref.calendar CASCADE")

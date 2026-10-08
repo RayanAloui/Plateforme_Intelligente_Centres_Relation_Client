@@ -18,8 +18,10 @@ HIGH, MEDIUM = 0.20, 0.10
 LEVELS = {0: "Faible", 1: "Moyen", 2: "Eleve"}
 
 
-def interval_levels(p_undercap: pd.Series, anomaly: pd.Series | None = None) -> pd.Series:
-    level = np.where(p_undercap >= HIGH, 2, np.where(p_undercap >= MEDIUM, 1, 0))
+def interval_levels(p_undercap: pd.Series, anomaly: pd.Series | None = None,
+                    high: float = HIGH, medium: float = MEDIUM) -> pd.Series:
+    """Niveau par demi-heure ; les seuils viennent des parametres de la plateforme."""
+    level = np.where(p_undercap >= high, 2, np.where(p_undercap >= medium, 1, 0))
     if anomaly is not None:
         level = np.maximum(level, anomaly.reindex(p_undercap.index).fillna(0).to_numpy().astype(int))
     return pd.Series(level, index=p_undercap.index, name="niveau")
@@ -46,11 +48,12 @@ def build_alerts(level: pd.Series, p_undercap: pd.Series, expected_loss: pd.Seri
 
 def message(alert: pd.Series) -> str:
     """Texte de l'alerte, au format du document de cadrage."""
-    title = {"Eleve": "Risque eleve detecte", "Moyen": "Risque moyen : surveillance recommandee"}[alert["niveau"]]
+    title = {"Eleve": "Risque élevé détecté", "Moyen": "Risque moyen : surveillance recommandée"}[alert["niveau"]]
     reco = (f"+{alert['renfort_recommande']} agents" if alert["renfort_recommande"] > 0
-            else "aucun renfort necessaire, surveiller")
+            else "aucun renfort nécessaire, surveiller")
+    loss = f"{alert['perte_attendue']:,.0f} EUR".replace(",", " ")
     return (f"{title}\n"
-            f"Periode : {alert['debut']:%Hh%M} - {alert['fin']:%Hh%M}\n"
-            f"Probabilite de sous-capacite : {100 * alert['proba_sous_capacite_max']:.0f} %\n"
-            f"Perte attendue : {alert['perte_attendue']:,.0f} EUR\n".replace(",", " ")
-            + f"Recommandation : {reco}")
+            f"Période : {alert['debut']:%Hh%M} - {alert['fin']:%Hh%M}\n"
+            f"Probabilité de sous-capacité : {100 * alert['proba_sous_capacite_max']:.0f} %\n"
+            f"Perte attendue : {loss}\n"
+            f"Recommandation : {reco}")

@@ -68,6 +68,7 @@ TEMPLATES = [{
 }]
 
 _db = get_settings()
+RANDOM_SEED = _db.random_seed
 DATABASES = {"default": {
     "ENGINE": "django.db.backends.postgresql",
     "NAME": _db.postgres_db, "USER": _db.postgres_user, "PASSWORD": _db.postgres_password,
@@ -84,9 +85,11 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
 ]
 
-# Les donnees du centre sont en heure locale naive (convention de l'etape 1.2).
+# Les donnees du centre sont en heure locale naive, sans changement d'heure (convention de
+# l'etape 1.2). On declare donc UTC, qui n'a pas de changement d'heure : un horodatage comme
+# 30/03/2025 02:30 est stocke tel quel, alors qu'en Europe/Paris il n'existerait pas.
 LANGUAGE_CODE = "fr-fr"
-TIME_ZONE = "Europe/Paris"
+TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = False
 

@@ -8,6 +8,10 @@ Modele : processus de Cox (Poisson doublement stochastique).
 
 Le melange Gamma-Poisson produit une loi binomiale negative : la variance
 depasse la moyenne, comme dans les donnees reelles de centres d'appels.
+
+origin : date de reference de la tendance. Par defaut, le debut du calendrier fourni.
+Pour simuler l'avenir (simulateur d'exploitation), on garde l'origine de l'historique
+afin que la croissance se poursuive au lieu de repartir de zero.
 """
 import numpy as np
 import pandas as pd
@@ -18,6 +22,11 @@ from crc.datagen.params import DemandParams
 
 def _normalize(x: np.ndarray) -> np.ndarray:
     return x / x.mean()
+
+
+def _years_since(ts: pd.Series, origin: pd.Timestamp | None) -> np.ndarray:
+    start = ts.iloc[0] if origin is None else pd.Timestamp(origin)
+    return ((ts - start).dt.total_seconds() / (365.25 * 86400)).to_numpy()
 
 
 def intraday_profile(bumps, night_floor: float, periods_per_day: int) -> np.ndarray:
@@ -50,10 +59,11 @@ def daily_factor(n_days: int, phi: float, sigma: float, rng: np.random.Generator
     return np.exp(z - stationary_var / 2)
 
 
-def base_intensity(calendar: pd.DataFrame, p: DemandParams, periods_per_day: int) -> np.ndarray:
+def base_intensity(calendar: pd.DataFrame, p: DemandParams, periods_per_day: int,
+                   origin: pd.Timestamp | None = None) -> np.ndarray:
     """Intensite deterministe : ce qu'un planificateur peut anticiper."""
     ts = calendar["ts"]
-    years = ((ts - ts.iloc[0]).dt.total_seconds() / (365.25 * 86400)).to_numpy()
+    years = _years_since(ts, origin)
 
     trend = (1 + p.annual_growth) ** years
     season = annual_profile(ts.dt.dayofyear.to_numpy(), p.monthly_profile)
@@ -83,9 +93,10 @@ def generate_demand(
     p: DemandParams,
     rngs: dict[str, np.random.Generator],
     periods_per_day: int = 48,
+    origin: pd.Timestamp | None = None,
 ) -> pd.DataFrame:
     """Volumes offerts et AHT cible par intervalle, avec la verite terrain."""
-    lam_base = base_intensity(calendar, p, periods_per_day)
+    lam_base = base_intensity(calendar, p, periods_per_day, origin)
     ev_mult, is_incident = event_multiplier(calendar["ts"], events)
 
     day_codes, _ = pd.factorize(calendar["date"])
@@ -98,7 +109,7 @@ def generate_demand(
 
     # AHT cible (moyenne des durees de traitement sur l'intervalle)
     ts = calendar["ts"]
-    years = ((ts - ts.iloc[0]).dt.total_seconds() / (365.25 * 86400)).to_numpy()
+    years = _years_since(ts, origin)
     hour = calendar["hour"].to_numpy()
     night = (hour < 7) | (hour >= 22)
     s = p.aht_noise_sigma

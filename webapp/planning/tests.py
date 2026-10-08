@@ -87,3 +87,73 @@ class PlatformTests(TestCase):
         a.refresh_from_db()
         self.assertFalse(a.is_active)
         self.assertEqual(ModelVersion.objects.get(is_active=True), b)
+
+
+# --- Cycle quotidien : execution, journal, interface ---------------------------------------------------
+from unittest import mock  # noqa: E402
+
+from django.urls import reverse  # noqa: E402
+from django.utils import timezone  # noqa: E402
+
+from planning.models import PipelineRun  # noqa: E402
+from planning.services import step  # noqa: E402
+from planning.tasks import STALE_AFTER, launch, running_run  # noqa: E402
+
+
+class TaskRunnerTests(TestCase):
+    def test_success_and_failure_are_recorded(self):
+        ok = launch(PipelineRun.Kind.DAILY, None, lambda run: "Termine", background=False)
+        self.assertEqual((ok.status, ok.message), (PipelineRun.Status.SUCCESS, "Termine"))
+
+        def boom(run):
+            raise RuntimeError("exports absents")
+        ko = launch(PipelineRun.Kind.DAILY, None, boom, background=False)
+        self.assertEqual(ko.status, PipelineRun.Status.FAILED)
+        self.assertIn("exports absents", ko.message)
+
+    def test_two_runs_never_overlap(self):
+        PipelineRun.objects.create(kind=PipelineRun.Kind.DAILY)          # un traitement en cours
+        self.assertIsNone(launch(PipelineRun.Kind.DAILY, None, lambda r: "", background=False))
+
+    def test_stale_runs_are_released(self):
+        run = PipelineRun.objects.create(kind=PipelineRun.Kind.DAILY)
+        PipelineRun.objects.filter(pk=run.pk).update(started_at=timezone.now() - STALE_AFTER - timedelta(minutes=1))
+        self.assertIsNone(running_run())
+        run.refresh_from_db()
+        self.assertEqual(run.status, PipelineRun.Status.FAILED)
+
+    def test_steps_are_journaled_with_duration(self):
+        run = PipelineRun.objects.create(kind=PipelineRun.Kind.DAILY)
+        with step(run, "Import et nettoyage") as s:
+            s["appels"] = 4200
+        with self.assertRaises(ValueError), step(run, "Prevision"):
+            raise ValueError
+        run.refresh_from_db()
+        self.assertEqual([s["statut"] for s in run.steps], ["ok", "echec"])
+        self.assertEqual(run.steps[0]["appels"], 4200)
+        self.assertIn("duree_s", run.steps[1])
+
+
+class CycleViewTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        call_command("create_demo_users", stdout=StringIO())
+
+    def test_only_managers_can_advance_the_platform(self):
+        self.client.login(username="planificateur", password="Demo2024!")
+        self.assertEqual(self.client.post(reverse("cycle_launch")).status_code, 403)
+
+    def test_manager_launches_and_follows_the_cycle(self):
+        self.client.login(username="manager", password="Demo2024!")
+        fake = PipelineRun.objects.create(kind=PipelineRun.Kind.DAILY, status=PipelineRun.Status.SUCCESS,
+                                          message="Journee integree", steps=[{"etape": "Import", "statut": "ok",
+                                                                              "duree_s": 0.3}])
+        with mock.patch("planning.views.launch", return_value=fake):
+            response = self.client.post(reverse("cycle_launch"))
+        self.assertContains(response, "Journee integree")
+        status = self.client.get(reverse("cycle_status", args=[fake.pk]))
+        self.assertEqual(status["HX-Trigger-After-Settle"], "cycle-termine")
+
+    def test_home_explains_how_to_initialise(self):
+        self.client.login(username="manager", password="Demo2024!")
+        self.assertContains(self.client.get(reverse("home")), "init_platform")

@@ -8,6 +8,7 @@ urlpatterns = [
         redirect_authenticated_user=True, extra_context={"demo_mode": settings.DEMO_MODE}), name="login"),
     path("deconnexion/", auth_views.LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
+    path("plateforme/", include("planning.urls")),
     path("", include("portal.urls")),
 ]
 
