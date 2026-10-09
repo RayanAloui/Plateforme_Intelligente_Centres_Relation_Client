@@ -50,6 +50,18 @@ class GuardTests(SimpleTestCase):
         self.assertTrue(verify("Deux agents suffisent.", sheet)["verified"])
 
 
+class GuardMisuseTests(SimpleTestCase):
+    sheet = "- Planning actuel : 653 heures d'agents\n- Le planning recommandé utilise 67 heures d'agents de moins"
+
+    def test_a_number_must_keep_its_unit(self):
+        result = verify("Il faudrait retirer 67 agents.", self.sheet)
+        self.assertFalse(result["verified"])
+        self.assertIn("67 agents (dans les données : 67 heures)", result["issues"])
+
+    def test_calculations_are_refused(self):
+        self.assertIn("calcul effectué par le modèle", verify("586 - 653 = -67 heures", self.sheet + " 586")["issues"])
+
+
 class FakeClient:
     def __init__(self, text=None, fail=False):
         self.text, self.fail, self.model = text, fail, "fake"
@@ -77,6 +89,17 @@ class AssistantTests(TestCase):
         self.assertIn("Effet de l'heure de la journée", sheet)
         self.assertIn("À 10h00 avec le planning en vigueur : 20 agents", sheet)
 
+    def test_key_points_correct_a_false_premise(self):
+        sheet = build_sheet(understand("Pourquoi le risque est-il élevé demain à 10h ?", TODAY))
+        points = " ".join(sheet["À retenir"])
+        self.assertIn("le risque de sous-capacité est faible : 5 %", points)
+        self.assertIn("Contrairement à ce que suppose la question", points)
+        self.assertIn("le facteur principal est l'effet de l'heure de la journée", points)
+
+    def test_key_points_answer_the_reinforcement_question(self):
+        sheet = build_sheet(understand("Combien d'agents faut-il en plus demain ?", TODAY))
+        self.assertIn("Aucun renfort n'est nécessaire", " ".join(sheet["À retenir"]))
+
     def test_answer_is_grounded_verified_and_stored(self):
         conv = Conversation.objects.create(user=self.manager)
         client = FakeClient("Demain, 4 800 appels sont prévus.")
@@ -86,11 +109,30 @@ class AssistantTests(TestCase):
         self.assertEqual(conv.messages.count(), 2)
         self.assertEqual(Conversation.objects.get().title, "Combien d'appels demain ?")
 
+    def test_conclusion_first_and_unreliable_explanation_discarded(self):
+        conv = Conversation.objects.create(user=self.manager)
+        good = answer(conv, "Combien d'agents faut-il en plus demain ?",
+                      FakeClient("Le planning en vigueur prévoit 360 heures d'agents."))
+        self.assertTrue(good.content.startswith("Aucun renfort n'est nécessaire demain"))
+        self.assertIn("360 heures d'agents", good.content)
+        bad = answer(conv, "Combien d'agents faut-il en plus demain ?", FakeClient("Il faut 586 - 653 = -67 agents."))
+        self.assertTrue(bad.content.startswith("Aucun renfort n'est nécessaire demain"))
+        self.assertNotIn("586", bad.content)                     # explication ecartee par le garde-fou
+        self.assertIn("586", bad.context["explication_ecartee"])
+
+    def test_explanation_that_only_repeats_is_not_shown(self):
+        conv = Conversation.objects.create(user=self.manager)
+        lead = "Aucun renfort n'est nécessaire demain : le planning en vigueur couvre le besoin"
+        msg = answer(conv, "Combien d'agents faut-il en plus demain ?", FakeClient(lead + " sur toutes les demi-heures."))
+        self.assertEqual(msg.content.count("Aucun renfort"), 1)
+
     def test_without_ollama_the_platform_still_answers_with_data(self):
         conv = Conversation.objects.create(user=self.manager)
         msg = answer(conv, "Combien d'appels demain ?", FakeClient(fail=True))
-        self.assertIn("momentanément indisponible", msg.content)
-        self.assertIn("4 800", msg.content)
+        self.assertTrue(msg.content.startswith("4 800 appels sont prévus"))        # la conclusion suffit
+        self.assertIn("hors_ligne", msg.context["verification"])
+        generic = answer(conv, "Quels sont les coûts ?", FakeClient(fail=True))   # pas de conclusion : la fiche
+        self.assertIn("momentanément indisponible", generic.content)
 
     def test_page_and_first_question(self):
         self.client.login(username="manager", password="Demo2024!")

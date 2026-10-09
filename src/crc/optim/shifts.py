@@ -26,7 +26,6 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from ortools.sat.python import cp_model
 
 from crc.optim.staffing import StaffingCurves
 
@@ -84,6 +83,8 @@ def schedule_shifts(curves: StaffingCurves, costs: dict, alpha: float,
                     start_step: int = START_STEP_PERIODS, pattern_cost: float = PATTERN_COST) -> ShiftSolution:
     """Vacations optimales. Les regles (durees, pas de debut, cout par type) sont modifiables
     pour mesurer le "prix de la rigidite" d'une organisation du travail."""
+    from ortools.sat.python import cp_model     # import tardif : OR-Tools n'est charge que pour resoudre
+
     started = time.perf_counter()
     T = curves.n.shape[0]
     max_agents = int(costs["agents_max_available"])

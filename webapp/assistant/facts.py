@@ -43,6 +43,20 @@ def in_force(day: date):
     return StaffingPlan.objects.filter(date=day, status=StaffingPlan.Status.PUBLISHED).first()
 
 
+def decision_plans(day: date) -> list[StaffingPlan]:
+    """Planning en vigueur, planning recommande et ajustements : les scenarios what-if restent dans leur page."""
+    plans = StaffingPlan.objects.filter(date=day).exclude(status=StaffingPlan.Status.SUPERSEDED)
+    return [p for p in plans.order_by("created_at")
+            if p.status == StaffingPlan.Status.PUBLISHED or p.kind in ("recommande", "ajuste")]
+
+
+def hours_difference(a: StaffingPlan, b: StaffingPlan) -> str:
+    diff = (a.agent_hours or 0) - (b.agent_hours or 0)
+    if abs(diff) < 0.5:
+        return "le même nombre d'heures d'agents"
+    return f"{n(abs(diff))} heures d'agents de {'plus' if diff > 0 else 'moins'}"
+
+
 def forecast_facts(day: date, hour: str | None) -> list[str]:
     fc = DailyForecast.objects.filter(date=day).first()
     if fc is None:
@@ -66,8 +80,7 @@ def forecast_facts(day: date, hour: str | None) -> list[str]:
 
 
 def planning_facts(day: date) -> list[str]:
-    plans = list(StaffingPlan.objects.filter(date=day).exclude(status=StaffingPlan.Status.SUPERSEDED)
-                 .order_by("created_at"))
+    plans = decision_plans(day)
     if not plans:
         return [f"Aucun planning n'existe pour le {day_name(day)}."]
     lines = []
@@ -81,9 +94,9 @@ def planning_facts(day: date) -> list[str]:
     current = next((p for p in plans if p.kind == "actuel"), None)
     rec = next((p for p in plans if p.kind == "recommande"), None)
     if current and rec and current.expected_total_cost and rec.expected_total_cost:
-        lines.append(f"Économie attendue du planning recommandé par rapport au planning actuel : "
-                     f"{n(current.expected_total_cost - rec.expected_total_cost)} € "
-                     f"(avec {n(rec.agent_hours - current.agent_hours)} heures d'agents de différence)")
+        saving = current.expected_total_cost - rec.expected_total_cost
+        lines.append(f"Le planning recommandé utilise {hours_difference(rec, current)} que le planning actuel, "
+                     f"pour un coût total attendu {n(abs(saving))} € {'plus faible' if saving >= 0 else 'plus élevé'}")
     force = in_force(day)
     if force:
         lines.append(f"Planning en vigueur : {plan_label(force)}")
@@ -91,8 +104,7 @@ def planning_facts(day: date) -> list[str]:
 
 
 def risk_facts(day: date, hour: str | None) -> list[str]:
-    plans = list(StaffingPlan.objects.filter(date=day).exclude(status=StaffingPlan.Status.SUPERSEDED)
-                 .order_by("created_at"))
+    plans = decision_plans(day)
     lines = []
     for p in plans:
         worst = p.intervals.order_by("-undercap_probability").first()
@@ -192,9 +204,111 @@ def parameter_facts() -> list[str]:
             f"Seuils d'alerte : moyenne à {pct(c.get('alert_medium_threshold', 0.1))}, élevée à {pct(c.get('alert_high_threshold', 0.2))}"]
 
 
+def level_of(p: float) -> str:
+    from crc.risk.costs import load_costs
+    c = load_costs()
+    if p >= c.get("alert_high_threshold", 0.2):
+        return "élevé"
+    return "moyen" if p >= c.get("alert_medium_threshold", 0.1) else "faible"
+
+
+def key_points(question) -> list[str]:
+    """Conclusions calculees par la plateforme. Elles forment le debut de la reponse, telles quelles :
+    l'assistant ne les deduit pas, il peut seulement les expliquer."""
+    import re
+    from assistant.understanding import TOPICS, normalize
+    day, t, points = question.day, normalize(question.text), []
+    asked = {name for name, words in TOPICS.items() if any(w in t for w in words)}
+    force = in_force(day) if day else None
+    fc = DailyForecast.objects.filter(date=day).first() if day else None
+
+    if day and "risque" in question.topics and force:
+        rows = list(force.intervals.order_by("ts"))
+        worst = max(rows, key=lambda r: r.undercap_probability or 0) if rows else None
+        row = next((r for r in rows if r.ts.strftime("%H:%M") == question.hour), None) if question.hour else None
+        if row:
+            level = level_of(row.undercap_probability or 0)
+            if "eleve" in t and level == "faible":
+                points.append(f"Contrairement à ce que suppose la question, le risque n'est pas élevé à {row.ts:%Hh%M}")
+            points.append(f"À {row.ts:%Hh%M}, le risque de sous-capacité est {level} : "
+                          f"{pct(row.undercap_probability)} avec le planning en vigueur, qui prévoit "
+                          f"{row.agents_scheduled} agents pour un besoin de {row.agents_required}")
+        if worst and (row is None or worst.pk != row.pk) and ("risque" in asked or row is not None):
+            points.append(f"Le moment le plus risqué de la journée est {worst.ts:%Hh%M} "
+                          f"({pct(worst.undercap_probability)}, risque {level_of(worst.undercap_probability or 0)})")
+
+    if day and "planning" in question.topics and force and re.search(r"en plus|renfort|manque|suffi|combien d.agent", t):
+        short = [r for r in force.intervals.order_by("ts") if r.agents_required > r.agents_scheduled]
+        if not short:
+            points.append("Aucun renfort n'est nécessaire demain : le planning en vigueur couvre le besoin "
+                          "sur toutes les demi-heures de la journée")
+        else:
+            top = max(short, key=lambda r: r.agents_required - r.agents_scheduled)
+            points.append(f"Il faut jusqu'à {top.agents_required - top.agents_scheduled} agents de plus (à {top.ts:%Hh%M}) : "
+                          f"le planning en vigueur manque d'agents sur {len(short)} demi-heures, "
+                          f"de {short[0].ts:%Hh%M} à {short[-1].ts:%Hh%M}")
+    elif day and "planning" in question.topics and "planning" in asked and force:
+        rec = next((p for p in decision_plans(day) if p.kind == "recommande"), None)
+        if rec and rec.pk != force.pk and rec.expected_total_cost and force.expected_total_cost:
+            saving = force.expected_total_cost - rec.expected_total_cost
+            points.append(f"Le planning recommandé coûterait {n(abs(saving))} € de {'moins' if saving >= 0 else 'plus'} "
+                          f"que le planning en vigueur, avec {hours_difference(rec, force)}")
+
+    if "capacite" in question.topics:
+        from planning.insights import capacity_data
+        plan = capacity_data(48)["plan"]
+        months = plan[plan.index.year == question.year] if question.year else plan.iloc[:12]
+        if not months.empty:
+            label = f"en {question.year}" if question.year else "sur les 12 prochains mois"
+            points.append(f"Il faut prévoir {n(months['etp_p50'].mean())} ETP en moyenne {label}, "
+                          f"et {n(months['etp_p90'].mean())} ETP pour être couvert dans 9 cas sur 10")
+
+    if fc and "prevision" in question.topics:
+        slot = fc.intervals.filter(ts__hour=int(question.hour[:2]), ts__minute=int(question.hour[3:])).first() \
+            if question.hour else None
+        if slot and slot.explanation:
+            name, effect = max(slot.explanation.items(), key=lambda kv: abs(kv[1]))
+            points.append(f"À {slot.ts:%Hh%M}, {n(slot.expected)} appels sont prévus ; le facteur principal est l'effet "
+                          f"{FACTORS.get(name, 'de ' + name)} ({'+' if effect >= 0 else ''}{n(effect, 1)} %)")
+        elif "prevision" in asked:
+            peak = max(fc.intervals.all(), key=lambda i: i.expected)
+            points.append(f"{n(fc.total_expected)} appels sont prévus le {day_name(day)} (entre {n(fc.total_q10)} et "
+                          f"{n(fc.total_q90)} dans 8 cas sur 10), avec un pic à {peak.ts:%Hh%M}")
+
+    if day and "alertes" in question.topics and "alertes" in asked:
+        open_ = Alert.objects.filter(date=day).exclude(status=Alert.Status.RESOLVED)
+        high = open_.filter(level=Alert.Level.HIGH).count()
+        points.append(f"{open_.count()} alerte{'s' if open_.count() > 1 else ''} ouverte{'s' if open_.count() > 1 else ''} "
+                      f"le {day_name(day)}, dont {high} élevée{'s' if high > 1 else ''}" if open_.exists()
+                      else f"Aucune alerte ouverte le {day_name(day)}")
+
+    if day and "historique" in question.topics:
+        real = realized(day)
+        if real is not None and fc:
+            actual = real["offered"].sum()
+            sl = (real["service_level"] * real["offered"]).sum() / max(actual, 1)
+            points.append(f"Le {day_name(day)}, {n(actual)} appels ont été reçus pour {n(fc.total_expected)} prévus, "
+                          f"avec un service level de {pct(sl)}")
+
+    if "modele" in question.topics:
+        from planning.monitoring import drift_status, live_performance
+        active = ModelVersion.objects.filter(is_active=True).first()
+        if active:
+            drift = drift_status(live_performance(), active.metrics or {})
+            detail = (f" : erreur de {n(drift['wape'], 1)} % sur les 7 dernières journées, pour {n(drift['reference'], 1)} % "
+                      f"mesurés avant la mise en service") if drift.get("wape") is not None else ""
+            state = {"ok": "en bonne santé", "surveiller": "à surveiller",
+                     "derive": "en dérive : un réentraînement est conseillé"}.get(drift["level"], "encore en observation")
+            points.append(f"Le modèle de prévision est {state}{detail.replace(' : ', ' (', 1) + ')' if detail else ''}")
+    return points
+
+
 def build_sheet(question) -> dict:
-    """Fiche complete : sections par theme, dans l'ordre de la question."""
+    """Fiche complete : conclusions d'abord, puis le detail par theme, dans l'ordre de la question."""
     sections = {}
+    points = key_points(question)
+    if points:
+        sections["À retenir"] = points
     for topic in question.topics:
         if topic == "prevision" and question.day:
             sections["Prévision"] = forecast_facts(question.day, question.hour)
