@@ -38,6 +38,7 @@
         <p class="truncate text-sm font-medium text-white">{{ user.display_name }}</p>
         <p class="text-xs text-slate-400">{{ user.get_role_display }}</p>
       </div>
+      <a href="{% url 'password_change' %}" title="Changer mon mot de passe" class="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white"><i data-lucide="key-round" class="h-4 w-4"></i><span class="sr-only">Changer mon mot de passe</span></a>
       <form method="post" action="{% url 'logout' %}">{% csrf_token %}
         <button type="submit" title="Se déconnecter" class="rounded-lg p-2 text-slate-400 hover:bg-white/10 hover:text-white">
           <i data-lucide="log-out" class="h-4 w-4"></i><span class="sr-only">Se déconnecter</span>

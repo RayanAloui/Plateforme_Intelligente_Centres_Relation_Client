@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_head %}<script src="{% static 'vendor/plotly.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script>{% endblock %}
+{% block content %}
+<div x-data @cycle-termine.window="setTimeout(() => window.location.reload(), 1200)">
+<div class="grid gap-6 xl:grid-cols-3">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+    {% if active %}
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Modèle en service</p>
+        <h2 class="mt-1 text-xl font-semibold text-slate-900">{{ active.version }}</h2>
+        <p class="text-sm text-slate-500">Hybride SARIMAX + LightGBM · a vu les données jusqu'au {{ active.cutoff|date:"d/m/Y" }} exclu · créé le {{ active.created_at|date:"d/m/Y à H:i" }}</p>
+      </div>
+      <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Actif</span>
+    </div>
+    <dl class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Erreur (WAPE)</dt><dd class="mt-1 text-lg font-semibold">{{ metrics.wape|floatformat:"2" }} %</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Biais</dt><dd class="mt-1 text-lg font-semibold">{{ metrics.biais|floatformat:"2" }} %</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Couverture 80 %</dt><dd class="mt-1 text-lg font-semibold">{{ metrics.couverture|floatformat:"1" }} %</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">σ niveau du jour</dt><dd class="mt-1 text-lg font-semibold">{{ uncertainty.sigma_jour|floatformat:"3" }}</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Surdispersion k</dt><dd class="mt-1 text-lg font-semibold">{{ uncertainty.k_surdispersion|floatformat:"1" }}</dd></div>
+    </dl>
+    <p class="mt-2 text-xs text-slate-500">Mesuré hors échantillon{% if metrics.periode %} ({{ metrics.periode }}){% endif %}, avant la mise en service.</p>
+    {% else %}
+    {% include "components/_empty_state.html" with icon="cpu" title="Aucun modèle actif" text="Lancez python webapp/manage.py init_platform pour entraîner le premier modèle." %}
+    {% endif %}
+  </section>
+
+  <section class="rounded-2xl border p-5 shadow-sm {% if drift.level == 'derive' %}border-rose-200 bg-rose-50{% elif drift.level == 'surveiller' %}border-amber-200 bg-amber-50{% elif drift.level == 'ok' %}border-emerald-200 bg-emerald-50{% else %}border-slate-200 bg-white{% endif %}">
+    <div class="flex items-center gap-2">
+      <i data-lucide="{% if drift.level == 'derive' %}triangle-alert{% elif drift.level == 'ok' %}shield-check{% else %}gauge{% endif %}" class="h-5 w-5 {% if drift.level == 'derive' %}text-rose-600{% elif drift.level == 'surveiller' %}text-amber-600{% elif drift.level == 'ok' %}text-emerald-600{% else %}text-slate-400{% endif %}"></i>
+      <h3 class="font-semibold text-slate-900">{{ drift.title }}</h3>
+    </div>
+    <p class="mt-2 text-sm text-slate-600">{{ drift.text }}</p>
+    {% if drift.wape is not None %}
+    <dl class="mt-3 space-y-1 text-sm">
+      <div class="flex justify-between"><dt class="text-slate-500">Erreur des 7 derniers jours</dt><dd class="font-semibold">{{ drift.wape|floatformat:"1" }} % <span class="font-normal text-slate-400">(réf. {{ drift.reference|floatformat:"1" }} %)</span></dd></div>
+      <div class="flex justify-between"><dt class="text-slate-500">Biais</dt><dd class="font-semibold">{{ drift.biais|floatformat:"1" }} %</dd></div>
+      <div class="flex justify-between"><dt class="text-slate-500">Couverture 80 %</dt><dd class="font-semibold">{{ drift.couverture|floatformat:"0" }} %</dd></div>
+    </dl>
+    {% endif %}
+    <div class="mt-4 space-y-2">
+      {% if running %}{% include "planning/_cycle_status.html" with run=running %}{% else %}
+      <form hx-post="{% url 'model_retrain' %}" hx-target="this" hx-swap="outerHTML">
+        <button class="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"><i data-lucide="rotate-ccw" class="h-4 w-4"></i>Réentraîner maintenant</button>
+        <p class="mt-1.5 text-xs text-slate-500">Environ une minute et demie : entraînement sur tout l'historique, recalibrage de l'incertitude sur 12 mois, puis replanification de demain.</p>
+      </form>
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+<section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <h3 class="font-semibold text-slate-900">Performance en exploitation</h3>
+  <p class="mt-1 text-sm text-slate-500">Erreur de la prévision émise la veille, pour chacune des {{ days_monitored }} dernières journées réalisées.</p>
+  {% if days_monitored %}
+  {{ chart|json_script:"monitoring-data" }}
+  <div data-chart="monitoring" data-source="monitoring-data"></div>
+  {% endif %}
+</section>
+
+<div class="mt-6 grid gap-6 xl:grid-cols-2">
+  <section class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <h3 class="px-5 pt-4 font-semibold text-slate-900">Versions</h3>
+    <table class="mt-2 min-w-full whitespace-nowrap text-sm">
+      <thead class="text-left text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-2">Version</th><th class="px-3">Créée le</th><th class="px-3 text-right">WAPE</th><th class="px-3 text-right">Couverture</th><th class="px-5"></th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for v, m in versions %}
+        <tr><td class="px-5 py-2.5 font-medium">{{ v.version }}</td><td class="px-3 text-slate-500">{{ v.created_at|date:"d/m/Y H:i" }}</td>
+          <td class="px-3 text-right">{{ m.wape|floatformat:"2" }} %</td><td class="px-3 text-right">{{ m.couverture|floatformat:"1" }} %</td>
+          <td class="px-5 text-right">{% if v.is_active %}<span class="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">En service</span>
+            {% else %}<button hx-post="{% url 'model_activate' v.pk %}" hx-confirm="Remettre en service la version {{ v.version }} ?" class="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700"><i data-lucide="undo-2" class="h-3.5 w-3.5"></i>Activer</button>{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <h3 class="px-5 pt-4 font-semibold text-slate-900">Journal des traitements</h3>
+    <table class="mt-2 min-w-full whitespace-nowrap text-sm">
+      <thead class="text-left text-xs uppercase tracking-wide text-slate-500"><tr><th class="px-5 py-2">Début</th><th class="px-3">Traitement</th><th class="px-3">Statut</th><th class="px-3 text-right">Durée</th><th class="px-5">Par</th></tr></thead>
+      <tbody class="divide-y divide-slate-100">
+        {% for r in runs %}
+        <tr x-data="{ open: false }" class="cursor-pointer hover:bg-slate-50" @click="open = !open">
+          <td class="px-5 py-2.5 text-slate-500">{{ r.started_at|date:"d/m H:i:s" }}</td>
+          <td class="px-3">{{ r.get_kind_display }}{% if r.target_date %} <span class="text-xs text-slate-400">→ {{ r.target_date|date:"d/m" }}</span>{% endif %}
+            <div x-show="open" x-cloak class="mt-1 whitespace-normal text-xs text-slate-500">{% for s in r.steps %}{{ s.etape }} ({{ s.duree_s }} s){% if not forloop.last %} · {% endif %}{% endfor %}{% if r.message %}<br>{{ r.message }}{% endif %}</div></td>
+          <td class="px-3"><span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {% if r.status == 'succes' %}bg-emerald-50 text-emerald-700{% elif r.status == 'echec' %}bg-rose-50 text-rose-700{% else %}bg-brand-50 text-brand-700{% endif %}">{{ r.get_status_display }}</span></td>
+          <td class="px-3 text-right text-slate-500">{% if r.duration_seconds %}{{ r.duration_seconds|floatformat:"0" }} s{% endif %}</td>
+          <td class="px-5 text-slate-500">{{ r.triggered_by.display_name|default:"automatique" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
+</div>
+{% endblock %}

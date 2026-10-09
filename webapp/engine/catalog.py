@@ -39,3 +39,22 @@ CATEGORIES = ["Coûts", "Service", "Risque et alertes", "Effectifs", "Vacations"
 def seed_rows():
     """(nom, valeur, unite, source) pour l'initialisation de la base."""
     return [(name, spec.default, spec.unit, "Valeur initiale") for name, spec in CATALOG.items()]
+
+
+PERCENT_UNITS = {"probabilité", "ratio"}
+
+
+def is_percent(name: str) -> bool:
+    return CATALOG[name].unit in PERCENT_UNITS
+
+
+def cross_errors(values: dict[str, float]) -> list[str]:
+    """Regles qui portent sur plusieurs parametres a la fois."""
+    errors = []
+    if values["alert_medium_threshold"] >= values["alert_high_threshold"]:
+        errors.append("Le seuil d'alerte moyenne doit être inférieur au seuil d'alerte élevée.")
+    if values["shift_min_hours"] > values["max_shift_hours"]:
+        errors.append("La durée minimale d'une vacation ne peut pas dépasser la durée maximale.")
+    if (values["max_shift_hours"] - values["shift_min_hours"]) % values["shift_length_step_hours"]:
+        errors.append("L'écart entre durées minimale et maximale doit être un multiple du pas des vacations.")
+    return errors

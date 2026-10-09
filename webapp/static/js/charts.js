@@ -100,6 +100,16 @@
       return [t, layout({ height: 320, hovermode: "x", xaxis: { gridcolor: "#f1f5f9", tickformat: "%m/%Y" },
         yaxis: Object.assign({}, BASE.yaxis, { title: "appels / mois" }) })];
     },
+    monitoring(d) {
+      const t = [
+        { x: d.x, y: d.wape, type: "bar", name: "erreur du jour (WAPE %)", marker: { color: "#a5b4fc" } },
+        { x: d.x, y: d.biais, name: "biais %", mode: "lines+markers", line: { color: "#0f172a", width: 1.5 } },
+      ];
+      const shapes = d.reference ? [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: d.reference, y1: d.reference,
+        line: { color: "#16a34a", dash: "dash", width: 1.5 } }] : [];
+      return [t, layout({ height: 280, shapes, xaxis: { gridcolor: "#f1f5f9", tickformat: "%d/%m", type: "date", dtick: 86400000 },
+        yaxis: Object.assign({}, BASE.yaxis, { title: "%" }) })];
+    },
     capacityfte(d) {
       const t = [
         { x: d.x, y: d.etp_p90, line: { width: 0 }, hoverinfo: "skip", showlegend: false },

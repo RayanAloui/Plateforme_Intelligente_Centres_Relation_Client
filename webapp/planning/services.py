@@ -250,6 +250,35 @@ def run_daily_cycle(run: PipelineRun) -> str:
     return f"Journée du {today:%d/%m/%Y} intégrée, lendemain ({tomorrow:%d/%m/%Y}) planifié."
 
 
+# --- Actions d'administration -------------------------------------------------------------------------
+def tomorrow() -> date:
+    state = PlatformState.get()
+    if state.current_date is None:
+        raise RuntimeError("Plateforme non initialisée : lancer  python webapp/manage.py init_platform")
+    return state.current_date + timedelta(days=1)
+
+
+def replan_tomorrow(run: PipelineRun) -> str:
+    """Recalcule prevision, plannings automatiques et alertes du lendemain (nouveaux parametres ou modele)."""
+    day = tomorrow()
+    run.target_date = day
+    run.save(update_fields=["target_date"])
+    plan_next_day(day, run)
+    return f"Lendemain ({day:%d/%m/%Y}) replanifié avec les paramètres et le modèle actuels."
+
+
+def retrain_and_replan(run: PipelineRun) -> str:
+    day = tomorrow()
+    run.target_date = day
+    run.save(update_fields=["target_date"])
+    with step(run, "Réentraînement du modèle") as s:
+        version = train_model(day, run)
+        s["version"] = version.version
+        s["WAPE_hors_echantillon"] = version.metrics.get("WAPE_%")
+    plan_next_day(day, run)
+    return f"Modèle {version.version} entraîné et activé ; lendemain replanifié."
+
+
 # --- Initialisation et remise a zero ---------------------------------------------------------------------------
 def last_data_day() -> date | None:
     value = read_sql("SELECT max(ts) AS m FROM core.interval_metrics")["m"].iloc[0]
