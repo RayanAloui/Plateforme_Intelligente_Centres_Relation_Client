@@ -91,11 +91,15 @@ def persist_outlook(outlook, run, model_version) -> dict:
     day, fc = outlook.day, outlook.forecast
     forecast, _ = DailyForecast.objects.update_or_create(date=day, defaults={
         "model_version": model_version, "run": run, "total_expected": float(fc["attendu"].sum()),
-        "total_q10": float(fc["q10"].sum()), "total_q90": float(fc["q90"].sum())})
+        "total_q10": float(fc["q10"].sum()), "total_q90": float(fc["q90"].sum()),
+        "level_total": float(fc["niveau_jour"].iloc[0])})
+    effect_cols = [c for c in fc.columns if c.startswith("effet:")]
     forecast.intervals.all().delete()
     IntervalForecast.objects.bulk_create([
-        IntervalForecast(forecast=forecast, ts=ts, expected=r.attendu, q01=r.q01, q10=r.q10, q50=r.q50,
-                         q90=r.q90, q99=r.q99, aht_expected=r.aht) for ts, r in fc.iterrows()])
+        IntervalForecast(forecast=forecast, ts=ts, expected=r["attendu"], q01=r["q01"], q10=r["q10"],
+                         q50=r["q50"], q90=r["q90"], q99=r["q99"], aht_expected=r["aht"],
+                         explanation={c.removeprefix("effet:"): round(float(r[c]), 1) for c in effect_cols})
+        for ts, r in fc.iterrows()])
 
     # On remplace les plannings automatiques precedents, jamais ceux qu'un utilisateur a touches.
     auto = StaffingPlan.objects.filter(date=day, kind__in=["actuel", "recommande"]).exclude(
@@ -163,6 +167,8 @@ def plan_next_day(day: date, run: PipelineRun | None = None) -> dict:
         current = simulator.current_plan_for(day)
         outlook = compute_outlook(bundle, history, events, day, current, costs)
         plans = persist_outlook(outlook, run, version)
+        from planning.evaluation import remember_model
+        remember_model(version.version, day, outlook.model)
         s.update({"jour": f"{day:%d/%m/%Y}", "appels_prevus": round(outlook.forecast["attendu"].sum()),
                   "alertes": len(outlook.alerts), "vacations": int(len(outlook.shifts.shifts)),
                   "solveur": outlook.shifts.status})

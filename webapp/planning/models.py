@@ -100,6 +100,7 @@ class DailyForecast(models.Model):
     total_expected = models.FloatField()
     total_q10 = models.FloatField(null=True)
     total_q90 = models.FloatField(null=True)
+    level_total = models.FloatField(null=True, help_text="Total journalier prevu par le SARIMAX")
 
     class Meta:
         ordering = ["-date"]
@@ -118,6 +119,7 @@ class IntervalForecast(models.Model):
     q90 = models.FloatField()
     q99 = models.FloatField()
     aht_expected = models.FloatField()
+    explanation = models.JSONField(default=dict, blank=True, help_text="Effet de chaque facteur, en %")
 
     class Meta:
         ordering = ["ts"]
@@ -205,6 +207,8 @@ class StaffingPlan(models.Model):
         if action not in self.TRANSITIONS:
             raise ValidationError(f"Action inconnue : {action}")
         source, target, roles = self.TRANSITIONS[action]
+        # Verrou sur la ligne : une modification en cours (ajustement) finit avant la transition.
+        self.status = StaffingPlan.objects.select_for_update().values_list("status", flat=True).get(pk=self.pk)
         if self.status != source:
             raise ValidationError(f"Impossible de {action} un planning au statut « {self.get_status_display()} ».")
         if not user.has_role(*roles):

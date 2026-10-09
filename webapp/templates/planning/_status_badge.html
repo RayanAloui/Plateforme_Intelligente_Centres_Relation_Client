@@ -1,0 +1,2 @@
+<span class="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold
+  {% if status == 'publie' %}bg-emerald-50 text-emerald-700{% elif status == 'valide' %}bg-sky-50 text-sky-700{% elif status == 'soumis' %}bg-amber-50 text-amber-700{% elif status == 'remplace' %}bg-slate-100 text-slate-400 line-through{% else %}bg-slate-100 text-slate-600{% endif %}">{{ label }}</span>

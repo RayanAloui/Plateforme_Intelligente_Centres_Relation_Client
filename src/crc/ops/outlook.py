@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 
 from crc.app.alerts import build_alerts, interval_levels
+from crc.app.explain import contributions
 from crc.forecasting.features import build_features
 from crc.forecasting.registry import ForecastBundle, future_frame
 from crc.optim.shifts import ShiftSolution, schedule_shifts
 from crc.optim.staffing import build_curves, deterministic_plan, risk_aware_plan
 from crc.risk.costs import INTERVAL_SECONDS, estimate_patience
+from crc.forecasting.statistical import daily_level
 from crc.risk.simulation import OperationalRiskModel, expected_shortfall, var
 
 QUANTILES = (0.01, 0.1, 0.5, 0.9, 0.99)
@@ -39,6 +41,7 @@ class DayOutlook:
     alerts: pd.DataFrame
     shifts: ShiftSolution              # vacations du planning recommande
     ideal: PlanOutlook                 # besoin demi-heure par demi-heure, sans contrainte de vacation
+    model: OperationalRiskModel        # modele de risque utilise (reutilise pour les ajustements)
 
 
 def risk_model_for(bundle: ForecastBundle, history: pd.DataFrame, costs: dict) -> OperationalRiskModel:
@@ -50,14 +53,21 @@ def risk_model_for(bundle: ForecastBundle, history: pd.DataFrame, costs: dict) -
 
 
 def forecast_day(bundle: ForecastBundle, history: pd.DataFrame, events: pd.DataFrame, day: date) -> pd.DataFrame:
-    """Prevision du jour `day` (le lendemain de la derniere donnee)."""
+    """Prevision du jour `day` (le lendemain de la derniere donnee), avec son explication.
+
+    Colonnes : attendu, aht, quantiles, niveau_jour (total journalier du SARIMAX) et, pour
+    chaque facteur, son effet en % sur la demi-heure (valeurs de SHAP de la partie LightGBM).
+    """
     extended = future_frame(history, days=1)
     X = build_features(extended, events)
     fc = bundle.forecast(extended, events, X)
     fc = fc[fc.index.date == day]
     q = bundle.predictive.quantiles(fc["volume_attendu"], pd.Series(fc.index.date, index=fc.index), QUANTILES)
     q.columns = ["q01", "q10", "q50", "q90", "q99"]
-    return pd.concat([fc.rename(columns={"volume_attendu": "attendu", "aht_attendue": "aht"}), q], axis=1)
+    level = daily_level(extended, events, params=bundle.hybrid.sarimax_params).reindex(fc.index)
+    effects = contributions(bundle.hybrid, X.loc[fc.index]).add_prefix("effet:")
+    return pd.concat([fc.rename(columns={"volume_attendu": "attendu", "aht_attendue": "aht"}), q,
+                      (level * len(fc)).rename("niveau_jour"), effects], axis=1)
 
 
 def evaluate_plan(model: OperationalRiskModel, forecast: pd.DataFrame, agents, seed: int) -> PlanOutlook:
@@ -104,7 +114,7 @@ def compute_outlook(bundle: ForecastBundle, history: pd.DataFrame, events: pd.Da
                             medium=costs.get("alert_medium_threshold", 0.10))
     alerts = build_alerts(level, plans["actuel"].undercap, plans["actuel"].expected_loss,
                           plans["actuel"].agents, plans["recommande"].agents)
-    return DayOutlook(day, forecast, plans, alerts, shifts, ideal)
+    return DayOutlook(day, forecast, plans, alerts, shifts, ideal, model)
 
 
 def detect_anomalies(bundle: ForecastBundle, expected: pd.Series, observed: pd.Series) -> pd.DataFrame:

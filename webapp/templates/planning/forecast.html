@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_head %}<script src="{% static 'vendor/plotly.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script>{% endblock %}
+{% block content %}
+{% include "components/_day_nav.html" %}
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  {% with total=forecast.total_expected|floatformat:"0g" lo=forecast.total_q10|floatformat:"0g" hi=forecast.total_q90|floatformat:"0g" %}
+  {% include "components/_kpi.html" with label="Appels prévus" value=total hint="entre "|add:lo|add:" et "|add:hi|add:" dans 8 cas sur 10" %}
+  {% endwith %}
+  {% with v=peak_value|floatformat:"0" t=peak_time|date:"H\hi" %}
+  {% include "components/_kpi.html" with label="Pic de la journée" value=v|add:" appels" hint="à "|add:t|add:" (par demi-heure)" %}
+  {% endwith %}
+  {% with a=aht|floatformat:"0" %}{% include "components/_kpi.html" with label="Durée moyenne d'appel prévue" value=a|add:" s" hint="médiane des 8 semaines précédentes" %}{% endwith %}
+  {% if actual_total %}
+    {% with a=actual_total|floatformat:"0g" e=error_pct|floatformat:"1" c=coverage80|floatformat:"0" %}
+    {% include "components/_kpi.html" with label="Réalisé" value=a|add:" appels" hint="écart de la prévision : "|add:e|add:" % · "|add:c|add:" % des demi-heures dans la fourchette 80 %" %}
+    {% endwith %}
+  {% else %}
+    {% include "components/_kpi.html" with label="Modèle" value=forecast.model_version.version hint="hybride SARIMAX + LightGBM, réentraîné chaque mois" %}
+  {% endif %}
+</div>
+
+<section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <h3 class="font-semibold text-slate-900">Prévision par demi-heure et incertitude</h3>
+    {% if anomalies %}<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>{{ anomalies|length }} anomalie{{ anomalies|pluralize }} détectée{{ anomalies|pluralize }}</span>{% endif %}
+  </div>
+  {{ chart|json_script:"forecast-data" }}
+  <div data-chart="forecast" data-source="forecast-data" class="mt-2"></div>
+  <p class="mt-2 text-xs text-slate-500">Les zones colorées sont les fourchettes de prévision : la plus foncée contient la réalité 8 fois sur 10, la plus claire 98 fois sur 100. Les zones rouges ou orangées signalent les anomalies.</p>
+</section>
+
+{% if anomalies %}
+<section class="mt-6 space-y-2">
+  {% for a in anomalies %}
+  <div class="flex items-start gap-3 rounded-xl border {% if a.level == 2 %}border-rose-200 bg-rose-50{% else %}border-amber-200 bg-amber-50{% endif %} p-4 text-sm">
+    <i data-lucide="activity" class="mt-0.5 h-4 w-4 shrink-0 {% if a.level == 2 %}text-rose-600{% else %}text-amber-600{% endif %}"></i>
+    <p class="text-slate-700">{{ a.message }}</p>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+<section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <h3 class="font-semibold text-slate-900">Pourquoi cette prévision ?</h3>
+  <p class="mt-1 text-sm text-slate-500">Choisissez une demi-heure : la plateforme explique comment elle est arrivée à son chiffre.</p>
+  <div id="explanation" class="mt-4">{% include "planning/_explanation.html" %}</div>
+</section>
+{% endblock %}

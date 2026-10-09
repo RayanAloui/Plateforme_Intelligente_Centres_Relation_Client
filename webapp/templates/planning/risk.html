@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_head %}<script src="{% static 'vendor/plotly.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script>{% endblock %}
+{% block content %}
+{% include "components/_day_nav.html" %}
+
+<section class="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <table class="min-w-full whitespace-nowrap text-sm">
+    <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <tr><th class="px-4 py-3">Planning</th><th class="px-4 py-3 text-right">Coût des agents</th><th class="px-4 py-3 text-right">Perte attendue</th>
+          <th class="px-4 py-3 text-right">Coût total</th><th class="px-4 py-3 text-right">VaR 95 %</th><th class="px-4 py-3 text-right">ES 95 %</th>
+          <th class="px-4 py-3 text-right">Service level</th><th class="px-4 py-3 text-right">Sous-capacité max.</th></tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for p in plans %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3"><a href="{% url 'planning' %}?jour={{ p.date|date:'Y-m-d' }}&plan={{ p.pk }}" class="font-medium text-slate-900 hover:text-brand-600">{{ p.get_kind_display }}</a>
+          <span class="ml-1 text-xs text-slate-400">n°{{ p.pk }}</span> {% include "planning/_status_badge.html" with status=p.status label=p.get_status_display %}</td>
+        <td class="px-4 py-3 text-right">{{ p.cost_agents|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right">{{ p.expected_loss|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right font-semibold">{{ p.expected_total_cost|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right">{{ p.var95|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right">{{ p.es95|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right">{% widthratio p.expected_service_level 1 100 %} %</td>
+        <td class="px-4 py-3 text-right font-semibold {% if p.max_undercap_probability >= 0.2 %}text-rose-600{% elif p.max_undercap_probability >= 0.1 %}text-amber-600{% else %}text-emerald-600{% endif %}">{% widthratio p.max_undercap_probability 1 100 %} %</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<div class="mt-6 grid gap-6 xl:grid-cols-2">
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Distribution des pertes de la journée</h3>
+    <p class="mt-1 text-xs text-slate-500">1 000 journées simulées par planning. Pointillés : VaR 95 %{% if realized_loss is not None %} · trait noir : perte réellement constatée{% endif %}.</p>
+    {{ loss_chart|json_script:"loss-data" }}
+    <div data-chart="losses" data-source="loss-data"></div>
+    {% if realized_loss is not None %}
+    <p class="mt-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-700">Perte réellement constatée : <strong>{{ realized_loss|floatformat:"0g" }} €</strong>{% if percentile is not None %}, soit le {{ percentile|floatformat:"0" }}<sup>e</sup> centile des scénarios du planning en vigueur{% endif %}.</p>
+    {% endif %}
+  </section>
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Probabilité de sous-capacité</h3>
+    <p class="mt-1 text-xs text-slate-500">Lignes : seuils d'alerte moyenne (10 %) et élevée (20 %).</p>
+    {{ compare_chart|json_script:"compare-data" }}
+    <div data-chart="riskcompare" data-source="compare-data"></div>
+  </section>
+</div>
+
+<section class="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+  <h3 class="font-semibold text-slate-900">Fiabilité de la VaR depuis le début de l'exploitation</h3>
+  {% if reliability.days %}
+  <p class="mt-2 text-sm text-slate-600">Sur <strong>{{ reliability.days }}</strong> journée{{ reliability.days|pluralize }} réalisée{{ reliability.days|pluralize }}, la perte réelle a dépassé la VaR 95 % annoncée la veille <strong>{{ reliability.exceedances }}</strong> fois ({{ reliability.rate|floatformat:"1" }} %, pour 5 % attendus).</p>
+  {% else %}<p class="mt-2 text-sm text-slate-500">Aucune journée encore réalisée : la comparaison apparaîtra après le premier cycle quotidien.</p>{% endif %}
+</section>
+{% endblock %}

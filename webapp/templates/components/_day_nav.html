@@ -1,0 +1,14 @@
+{# Navigation entre les journees : precedente, suivante, statut de la journee #}
+<div class="flex flex-wrap items-center gap-3">
+  <div class="inline-flex items-center rounded-xl border border-slate-200 bg-white shadow-sm">
+    {% if nav.previous %}<a href="?jour={{ nav.previous|date:'Y-m-d' }}" class="rounded-l-xl px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800" title="Journée précédente"><i data-lucide="chevron-left" class="h-4 w-4"></i></a>
+    {% else %}<span class="px-3 py-2 text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i></span>{% endif %}
+    <span class="border-x border-slate-200 px-4 py-2 text-sm font-semibold text-slate-900 first-letter:uppercase">{{ nav.day|date:"l d F Y" }}</span>
+    {% if nav.next %}<a href="?jour={{ nav.next|date:'Y-m-d' }}" class="rounded-r-xl px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-slate-800" title="Journée suivante"><i data-lucide="chevron-right" class="h-4 w-4"></i></a>
+    {% else %}<span class="px-3 py-2 text-slate-300"><i data-lucide="chevron-right" class="h-4 w-4"></i></span>{% endif %}
+  </div>
+  {% if nav.is_tomorrow %}<span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">Demain · à décider</span>
+  {% elif nav.is_future %}<span class="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">À venir</span>
+  {% else %}<span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Journée réalisée · comparaison avec la réalité</span>{% endif %}
+  {% if nav.next %}<a href="?jour={{ nav.last|date:'Y-m-d' }}" class="text-xs font-medium text-brand-600 hover:text-brand-700">Aller au lendemain planifié →</a>{% endif %}
+</div>

@@ -1,0 +1,112 @@
+{# Detail d'un planning : actions, indicateurs, graphiques, vacations, historique #}
+<div class="space-y-6">
+  {% if note %}<div class="flex items-center gap-2 rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-700"><i data-lucide="refresh-ccw" class="h-4 w-4"></i>{{ note }}</div>{% endif %}
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-semibold text-slate-900">{{ plan.title|default:plan.get_kind_display }}</h2>
+          {% include "planning/_status_badge.html" with status=plan.status label=plan.get_status_display %}
+        </div>
+        <p class="mt-1 text-sm text-slate-500">Planning n°{{ plan.pk }}{% if plan.parent %} · dérivé du planning n°{{ plan.parent_id }}{% endif %}{% if plan.alpha %} · risque de sous-capacité toléré : {% widthratio plan.alpha 1 100 %} %{% endif %}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2" x-data="{ refuse: false }">
+        {% for action, label in actions %}
+          {% if action == "refuser" %}
+          <button type="button" @click="refuse = !refuse" class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-sm font-semibold text-rose-600 hover:bg-rose-50">Refuser…</button>
+          {% else %}
+          <button hx-post="{% url 'plan_transition' plan.pk action %}" hx-sync="#plan-panel:queue all" hx-disabled-elt="this" class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">{{ label }}</button>
+          {% endif %}
+        {% endfor %}
+        {% if can_adjust %}
+        <button hx-post="{% url 'plan_adjust' plan.pk %}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="pencil" class="h-4 w-4"></i>Créer un ajustement</button>
+        {% endif %}
+        <a href="{% url 'plan_export' plan.pk 'xlsx' %}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="file-spreadsheet" class="h-4 w-4"></i>Excel</a>
+        <a href="{% url 'plan_export' plan.pk 'pdf' %}" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"><i data-lucide="file-text" class="h-4 w-4"></i>PDF</a>
+        <form x-show="refuse" x-cloak hx-post="{% url 'plan_transition' plan.pk 'refuser' %}" class="flex w-full gap-2">
+          <input name="comment" required placeholder="Motif du refus (obligatoire)" class="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <button class="rounded-lg bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700">Confirmer le refus</button>
+        </form>
+      </div>
+    </div>
+
+    <dl class="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Heures d'agents</dt><dd class="mt-1 font-semibold">{{ plan.agent_hours|floatformat:"0g" }} h</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Coût des agents</dt><dd class="mt-1 font-semibold">{{ plan.cost_agents|floatformat:"0g" }} €</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Perte attendue</dt><dd class="mt-1 font-semibold">{{ plan.expected_loss|floatformat:"0g" }} €</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">VaR 95 %</dt><dd class="mt-1 font-semibold">{{ plan.var95|floatformat:"0g" }} €</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Service level attendu</dt><dd class="mt-1 font-semibold">{% widthratio plan.expected_service_level 1 100 %} %</dd></div>
+      <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Sous-capacité max.</dt><dd class="mt-1 font-semibold {% if plan.max_undercap_probability >= 0.2 %}text-rose-600{% elif plan.max_undercap_probability >= 0.1 %}text-amber-600{% else %}text-emerald-600{% endif %}">{% widthratio plan.max_undercap_probability 1 100 %} %</dd></div>
+    </dl>
+    {% with v=plan.details.vacations %}{% if v %}
+    <p class="mt-3 text-xs text-slate-500">{{ v.types }} types de vacations · {{ v.agents }} agents · {{ v.heures_payees|floatformat:"0" }} h payées · solveur {{ v.statut_solveur }}{% if v.ecart_optimum_pct %} (à moins de {{ v.ecart_optimum_pct }} % de l'optimum){% endif %}{% if plan.details.prix_des_vacations_pct is not None %} · prix des vacations : +{{ plan.details.prix_des_vacations_pct }} % par rapport au besoin idéal{% endif %}</p>
+    {% endif %}{% endwith %}
+  </section>
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Besoin et couverture</h3>
+    {{ plan_chart|json_script:"plan-data" }}
+    <div data-chart="plan" data-source="plan-data"></div>
+    <h4 class="mt-2 text-sm font-medium text-slate-700">Probabilité de sous-capacité par demi-heure</h4>
+    <div data-chart="undercap" data-source="plan-data"></div>
+    {% if under_count %}<p class="mt-1 text-xs text-amber-700">Le planning couvre moins que le besoin idéal sur {{ under_count }} demi-heure{{ under_count|pluralize }}.</p>{% endif %}
+  </section>
+
+  {% if shifts %}
+  <section class="grid gap-6 xl:grid-cols-5">
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-3">
+      <h3 class="font-semibold text-slate-900">Vacations</h3>
+      {{ gantt|json_script:"gantt-data" }}
+      <div data-chart="gantt" data-source="gantt-data"></div>
+    </div>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+      <h3 class="font-semibold text-slate-900">{% if editable %}Ajuster les vacations{% else %}Détail des vacations{% endif %}</h3>
+      {% if not editable and plan.is_editable is False %}<p class="mt-1 text-xs text-slate-500">Planning {{ plan.get_status_display|lower }} : créez un ajustement pour le modifier.</p>{% endif %}
+      <ul class="mt-3 divide-y divide-slate-100">
+        {% for s in shifts %}
+        <li class="flex items-center gap-3 py-2 text-sm">
+          <span class="w-28 font-medium text-slate-700">{{ s.start|date:"H\hi" }} – {{ s.end|date:"H\hi" }}</span>
+          <span class="text-xs text-slate-400">{{ s.hours|floatformat:"0" }} h</span>
+          <span class="flex-1"></span>
+          {% if editable %}
+          <button hx-post="{% url 'shift_minus' plan.pk s.pk %}" hx-target="#plan-panel" hx-sync="#plan-panel:queue all" hx-indicator="#edit-indicator" hx-disabled-elt="this" class="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Retirer un agent"><i data-lucide="minus" class="h-3.5 w-3.5"></i></button>
+          {% endif %}
+          <span class="w-16 text-center font-semibold text-slate-900">{{ s.agents }} ag.</span>
+          {% if editable %}
+          <button hx-post="{% url 'shift_plus' plan.pk s.pk %}" hx-target="#plan-panel" hx-sync="#plan-panel:queue all" hx-indicator="#edit-indicator" hx-disabled-elt="this" class="grid h-7 w-7 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" title="Ajouter un agent"><i data-lucide="plus" class="h-3.5 w-3.5"></i></button>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% if editable %}
+      <form hx-post="{% url 'shift_add' plan.pk %}" hx-target="#plan-panel" hx-sync="#plan-panel:queue all" hx-indicator="#edit-indicator" hx-disabled-elt="find button" class="mt-4 grid grid-cols-[1fr_1fr_1fr_auto] items-end gap-2 rounded-xl bg-slate-50 p-3">
+        <label class="text-xs text-slate-500">Début<select name="debut" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">{% for h in hours %}<option>{{ h }}</option>{% endfor %}</select></label>
+        <label class="text-xs text-slate-500">Durée<select name="duree" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm">{% for l in lengths %}<option value="{{ l }}">{{ l }} h</option>{% endfor %}</select></label>
+        <label class="text-xs text-slate-500">Agents<input name="agents" type="number" min="1" max="60" value="1" class="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"></label>
+        <button class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700">Ajouter</button>
+      </form>
+      <p class="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><span id="edit-indicator" class="htmx-indicator inline-flex"><i data-lucide="loader-circle" class="h-3.5 w-3.5 animate-spin"></i></span>Chaque modification recalcule la couverture et le risque (1 000 scénarios).</p>
+      {% endif %}
+    </div>
+  </section>
+  {% else %}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+    Ce planning provient de l'outil de gestion des effectifs en place : il est exprimé en nombre d'agents par demi-heure, sans vacations.
+  </section>
+  {% endif %}
+
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Historique des décisions</h3>
+    <ol class="mt-3 space-y-3">
+      {% for d in decisions %}
+      <li class="flex gap-3 text-sm">
+        <span class="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-slate-100 text-slate-500"><i data-lucide="{% if d.action == 'publier' %}send{% elif d.action == 'valider' %}check{% elif d.action == 'refuser' %}x{% elif d.action == 'ajuste' %}pencil{% elif d.action == 'export' %}download{% else %}circle{% endif %}" class="h-3.5 w-3.5"></i></span>
+        <div><p class="text-slate-700"><strong>{{ d.get_action_display }}</strong> · {{ d.user.display_name|default:"plateforme" }}</p>
+          {% if d.comment %}<p class="text-xs text-slate-500">{{ d.comment }}</p>{% endif %}
+          <p class="text-xs text-slate-400">{{ d.created_at|date:"d/m/Y H:i" }}</p></div>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>

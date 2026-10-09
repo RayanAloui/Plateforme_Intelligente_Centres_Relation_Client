@@ -1,0 +1,34 @@
+<div class="grid gap-6 lg:grid-cols-3">
+  <div>
+    <label class="text-xs font-medium uppercase tracking-wide text-slate-500" for="heure">Demi-heure</label>
+    <select id="heure" name="heure" class="mt-1.5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            hx-get="{% url 'forecast_explain' %}?jour={{ forecast.date|date:'Y-m-d' }}" hx-target="#explanation" hx-trigger="change">
+      {% for t in times %}<option value="{{ t }}" {% if t == interval.ts|date:'H:i' %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select>
+    <div class="mt-4 rounded-xl bg-slate-50 p-4">
+      <p class="text-xs text-slate-500">Prévision</p>
+      <p class="text-2xl font-semibold text-slate-900">{{ interval.expected|floatformat:"0" }} appels</p>
+      <p class="mt-1 text-xs text-slate-500">entre {{ interval.q10|floatformat:"0" }} et {{ interval.q90|floatformat:"0" }} dans 8 cas sur 10</p>
+    </div>
+  </div>
+  <div class="lg:col-span-2">
+    {% if effects %}
+    <p class="text-sm text-slate-600">
+      {% if average_slot %}Le modèle part du <strong>niveau du jour</strong>, prévu par le SARIMAX : {{ forecast.level_total|floatformat:"0g" }} appels, soit {{ average_slot|floatformat:"0" }} par demi-heure en moyenne. {% endif %}
+      Il l'ajuste ensuite avec les facteurs suivants (effet multiplicatif sur la demi-heure) :
+    </p>
+    <ul class="mt-4 space-y-2.5">
+      {% for e in effects %}
+      <li class="grid grid-cols-[11rem_1fr_5.5rem] items-center gap-3 text-sm">
+        <span class="text-slate-700">{{ e.facteur }}</span>
+        <span class="h-2.5 rounded-full bg-slate-100"><span class="block h-2.5 rounded-full {% if e.effet >= 0 %}bg-rose-400{% else %}bg-emerald-400{% endif %}" style="width: {{ e.largeur }}%"></span></span>
+        <span class="text-right font-semibold {% if e.effet >= 0 %}text-rose-600{% else %}text-emerald-600{% endif %}">{% if e.effet >= 0 %}+{% endif %}{{ e.effet|floatformat:"1" }} %</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <p class="mt-4 text-xs text-slate-500">Valeurs de SHAP exactes de la partie LightGBM. Le jour de la semaine, la tendance et les jours fériés sont déjà intégrés dans le niveau du jour.</p>
+    {% else %}
+    <p class="text-sm text-slate-500">Explication non disponible pour cette journée (planifiée avant l'activation des explications).</p>
+    {% endif %}
+  </div>
+</div>
