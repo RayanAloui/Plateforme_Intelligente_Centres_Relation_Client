@@ -1,7 +1,7 @@
 # Pilote CRC — Plateforme intelligente de prévision, d'optimisation et de gestion des risques pour centres de relation client
 
-Projet de fin d'année (PFA) de 4e année ingénieur — ESPRIT / IMT Mines Albi.
-**Auteur :** _à compléter_
+Projet de fin d'année (PFA) de 4e année ingénieur — ESPRIT / Université Gustave Eiffel.
+**Auteur :** ALOUI Ahmed Rayen
 
 Pilote CRC répond chaque jour à une question simple : **combien d'agents faut-il, à quel moment, pour un coût minimal et un risque maîtrisé ?**
 Elle prévoit la demande avec son incertitude, chiffre le risque opérationnel en euros, construit le planning optimal en vacations réelles,
