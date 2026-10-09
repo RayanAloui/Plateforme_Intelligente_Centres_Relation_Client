@@ -17,8 +17,9 @@ statsmodels==0.14.4
 lightgbm==4.5.0
 scikit-learn==1.5.2
 joblib==1.4.2
-streamlit==1.41.1
 Django==5.1.4
 django-htmx==1.21.0
 whitenoise==6.8.2
 gunicorn==23.0.0
+ortools==9.12.4544
+reportlab==4.2.5

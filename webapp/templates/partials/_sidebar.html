@@ -22,7 +22,8 @@
              {% if active_page == item.url_name %}aria-current="page"{% endif %}>
             <i data-lucide="{{ item.icon }}" class="h-4 w-4 shrink-0 {% if active_page == item.url_name %}text-brand-500{% else %}text-slate-500 group-hover:text-slate-300{% endif %}"></i>
             <span class="flex-1">{{ item.label }}</span>
-            {% if item.step %}<span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">bientôt</span>{% endif %}
+            {% if item.step %}<span class="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-400">bientôt</span>
+            {% elif item.url_name == "alerts" and open_alerts %}<span class="min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] font-bold text-white">{{ open_alerts }}</span>{% endif %}
           </a>
         </li>
         {% endfor %}

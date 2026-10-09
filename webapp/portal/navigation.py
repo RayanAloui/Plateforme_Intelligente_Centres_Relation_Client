@@ -21,7 +21,7 @@ class NavItem:
 SECTIONS = [
     ("Pilotage", [
         NavItem("Accueil", "home", "layout-dashboard"),
-        NavItem("Alertes", "alerts", "bell-ring", step="E",
+        NavItem("Alertes", "alerts", "bell-ring",
                 summary="Le centre d'alertes graduées de la plateforme.",
                 features=("Alertes faibles, moyennes et élevées", "Accusé de réception",
                           "Renfort recommandé applicable en un clic")),
@@ -31,6 +31,10 @@ SECTIONS = [
                 summary="La prévision à J+1 et son incertitude.",
                 features=("Fourchettes à 80 % et 98 %", "Anomalies du jour",
                           "Explication de chaque demi-heure (SHAP)")),
+        NavItem("Capacité", "capacity", "users-round",
+                summary="Effectifs et budget à 1, 2, 3 ou 4 ans.",
+                features=("Prévision mensuelle avec fourchettes", "Équivalents temps plein à recruter",
+                          "Fiabilité mesurée selon l'horizon")),
     ]),
     ("Décider", [
         NavItem("Planning", "planning", "calendar-clock",
@@ -41,13 +45,13 @@ SECTIONS = [
                 summary="Le risque opérationnel du planning, en euros.",
                 features=("Perte attendue, VaR et Expected Shortfall", "Probabilité de sous-capacité",
                           "Distribution des pertes simulées")),
-        NavItem("What-if", "whatif", "sliders-horizontal", step="E",
+        NavItem("What-if", "whatif", "sliders-horizontal",
                 summary="Tester une hypothèse et voir toutes ses conséquences.",
                 features=("Volume, absences, budget, risque toléré", "Comparaison avant / après",
                           "Transformer un scénario en planning")),
     ]),
     ("Suivre", [
-        NavItem("Historique", "history", "history", step="E",
+        NavItem("Historique", "history", "history",
                 summary="Ce qui était prévu, ce qui a été décidé, ce qui s'est passé.",
                 features=("Prévu vs réalisé", "Décisions et ajustements", "Qualité des recommandations")),
         NavItem("Assistant IA", "assistant", "sparkles", step="G",

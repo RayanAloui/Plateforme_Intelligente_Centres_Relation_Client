@@ -1,15 +1,10 @@
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
-import pytest
 
 from crc.app.alerts import build_alerts, interval_levels, message
 from crc.app.explain import contributions, explain_interval
 from crc.forecasting.features import build_features
 from crc.forecasting.ml import SHAPE_FEATURES, HybridForecaster
-
-DASHBOARD = Path(__file__).resolve().parents[1] / "src" / "crc" / "app" / "dashboard.py"
 
 
 def test_alert_levels_combine_risk_and_anomalies():
@@ -47,13 +42,3 @@ def test_shap_contributions_rebuild_the_forecast(simulated):
     assert "heure de la journee" in effects.columns
     top = explain_interval(model, X, pd.Timestamp("2024-09-02 10:30"))
     assert top["effet %"].abs().is_monotonic_decreasing
-
-
-@pytest.mark.skipif(not (Path("data/app/jours.parquet").exists()), reason="lancer python -m crc.app.prepare")
-def test_dashboard_pages_run_without_error():
-    from streamlit.testing.v1 import AppTest
-    for page in ["Vue d'ensemble", "Prevision", "Risque et planning", "What-if"]:
-        at = AppTest.from_file(str(DASHBOARD), default_timeout=180)
-        at.run()
-        at.sidebar.radio[0].set_value(page).run()
-        assert not at.exception, page

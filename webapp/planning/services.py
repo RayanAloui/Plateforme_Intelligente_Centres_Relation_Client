@@ -91,7 +91,7 @@ def persist_outlook(outlook, run, model_version) -> dict:
     day, fc = outlook.day, outlook.forecast
     forecast, _ = DailyForecast.objects.update_or_create(date=day, defaults={
         "model_version": model_version, "run": run, "total_expected": float(fc["attendu"].sum()),
-        "total_q10": float(fc["q10"].sum()), "total_q90": float(fc["q90"].sum()),
+        "total_q10": float(fc["total_q10"].iloc[0]), "total_q90": float(fc["total_q90"].iloc[0]),
         "level_total": float(fc["niveau_jour"].iloc[0])})
     effect_cols = [c for c in fc.columns if c.startswith("effet:")]
     forecast.intervals.all().delete()
@@ -210,6 +210,14 @@ def check_anomalies(day: date, run: PipelineRun | None = None) -> int:
         return n
 
 
+def close_past_risk_alerts(day: date) -> int:
+    """Une alerte de risque porte sur une journee a venir : une fois la journee ecoulee, elle est close."""
+    from django.utils import timezone
+    return Alert.objects.filter(date__lte=day, source=Alert.Source.RISK).exclude(
+        status=Alert.Status.RESOLVED).update(status=Alert.Status.RESOLVED, handled_at=timezone.now(),
+                                             handling_comment="Journée écoulée : alerte close automatiquement")
+
+
 # --- Le cycle complet ---------------------------------------------------------------------------------
 def run_daily_cycle(run: PipelineRun) -> str:
     """Une journee de la vie de la plateforme (mode demonstration : le simulateur livre les exports)."""
@@ -229,6 +237,9 @@ def run_daily_cycle(run: PipelineRun) -> str:
         s.update({"appels": report["appels"], "doublons": report["acd_duplicates_removed"],
                   "intervalles_reconstitues": report["intervals_imputed"]})
     check_anomalies(today, run)
+    closed = close_past_risk_alerts(today)
+    if closed:
+        run.steps[-1]["alertes_closes"] = closed
     if tomorrow.day == 1:
         with step(run, "Réentraînement mensuel") as s:
             s["version"] = train_model(tomorrow, run).version

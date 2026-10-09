@@ -131,6 +131,10 @@ def plan_transition(request, pk, action):
     plan = get_object_or_404(StaffingPlan, pk=pk)
     try:
         plan.transition(action, request.user, request.POST.get("comment", "").strip())
+        if action == "publier" and plan.date > (platform_today() or plan.date):
+            from alerts.services import realign_alerts
+            n = realign_alerts(plan, request.user)
+            messages.info(request, f"Alertes de la journée recalculées sur ce planning : {n} restante{'s' if n > 1 else ''}.")
         labels = {"soumettre": "soumis à validation", "valider": "validé", "publier": "publié",
                   "refuser": "renvoyé en brouillon"}
         messages.success(request, f"Planning n°{plan.pk} {labels[action]}.")

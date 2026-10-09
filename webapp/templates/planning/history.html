@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% load static %}
+{% block extra_head %}<script src="{% static 'vendor/plotly.min.js' %}"></script><script src="{% static 'js/charts.js' %}"></script>{% endblock %}
+{% block content %}
+{% if rows %}
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+  {% include "components/_kpi.html" with label="Journées exploitées" value=summary.days %}
+  {% with w=summary.wape|floatformat:"1" r=summary.in_range|floatformat:"0" %}
+  {% include "components/_kpi.html" with label="Écart moyen de prévision" value=w|add:" %" hint="volume journalier · "|add:r|add:" % des journées dans la fourchette 80 %" %}{% endwith %}
+  {% include "components/_kpi.html" with label="Journées pilotées par l'équipe" value=summary.team_days hint="planning recommandé ou ajusté publié" %}
+  {% with g=summary.gain|floatformat:"0g" p=summary.potential|floatformat:"0g" %}{% include "components/_kpi.html" with label="Gain réalisé cumulé" value=g|add:" €" hint="potentiel si toutes les recommandations avaient été publiées : "|add:p|add:" €" hint_class="text-emerald-600" %}{% endwith %}
+</div>
+
+<section class="mt-6 grid gap-6 xl:grid-cols-2">
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Appels prévus la veille et réalisés</h3>
+    {{ chart|json_script:"history-data" }}
+    <div data-chart="history" data-source="history-data"></div>
+  </div>
+  <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h3 class="font-semibold text-slate-900">Gain cumulé des décisions</h3>
+    <div data-chart="gain" data-source="history-data"></div>
+  </div>
+</section>
+
+<section class="mt-6 overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <table class="min-w-full whitespace-nowrap text-sm">
+    <thead class="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+      <tr><th class="px-4 py-3">Journée</th><th class="px-4 py-3 text-right">Prévu</th><th class="px-4 py-3 text-right">Réalisé</th><th class="px-4 py-3 text-right">Écart</th>
+        <th class="px-4 py-3">Planning en vigueur</th><th class="px-4 py-3 text-right">Coût total</th><th class="px-4 py-3 text-right">Outil en place</th>
+        <th class="px-4 py-3 text-right">Gain</th><th class="px-4 py-3 text-right">Si recommandé</th><th class="px-4 py-3 text-right">Service level</th><th class="px-4 py-3 text-center">Alertes</th><th class="px-4 py-3 text-center">Décisions</th></tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for r in rows %}
+      <tr class="hover:bg-slate-50">
+        <td class="px-4 py-3 font-medium text-slate-900 first-letter:uppercase">{{ r.date|date:"D d/m/Y" }}</td>
+        <td class="px-4 py-3 text-right">{{ r.prevu|floatformat:"0g" }}</td>
+        <td class="px-4 py-3 text-right">{{ r.reel|floatformat:"0g" }}</td>
+        <td class="px-4 py-3 text-right {% if r.dans_fourchette %}text-slate-600{% else %}text-amber-600{% endif %}">{% if r.ecart > 0 %}+{% endif %}{{ r.ecart|floatformat:"1" }} %</td>
+        <td class="px-4 py-3"><a href="{% url 'planning' %}?jour={{ r.date|date:'Y-m-d' }}{% if r.plan %}&plan={{ r.plan.pk }}{% endif %}" class="text-brand-600 hover:text-brand-700">{{ r.plan.get_kind_display|default:"—" }}</a></td>
+        <td class="px-4 py-3 text-right font-semibold">{{ r.outcome.vigueur.total|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right text-slate-500">{{ r.outcome.wfm.total|floatformat:"0g" }} €</td>
+        <td class="px-4 py-3 text-right {% if r.gain > 0 %}text-emerald-600 font-semibold{% elif r.gain < 0 %}text-rose-600{% else %}text-slate-400{% endif %}">{% if r.gain %}{% if r.gain > 0 %}+{% endif %}{{ r.gain|floatformat:"0g" }} €{% else %}—{% endif %}</td>
+        <td class="px-4 py-3 text-right text-slate-500">{% if r.potentiel %}{% if r.potentiel > 0 %}+{% endif %}{{ r.potentiel|floatformat:"0g" }} €{% else %}—{% endif %}</td>
+        <td class="px-4 py-3 text-right">{% widthratio r.outcome.vigueur.sl 1 100 %} %</td>
+        <td class="px-4 py-3 text-center">{{ r.alertes }}</td>
+        <td class="px-4 py-3 text-center">{{ r.decisions }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+<p class="mt-3 flex items-start gap-2 text-xs text-slate-500"><i data-lucide="info" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i>{{ note }}</p>
+{% else %}
+{% include "components/_empty_state.html" with icon="history" title="Aucune journée réalisée" text="L'historique se remplit à chaque cycle quotidien : passez au jour suivant depuis l'accueil." %}
+{% endif %}
+{% endblock %}

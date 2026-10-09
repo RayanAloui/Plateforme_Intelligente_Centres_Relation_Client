@@ -65,6 +65,10 @@ def forecast_day(bundle: ForecastBundle, history: pd.DataFrame, events: pd.DataF
     q = bundle.predictive.quantiles(fc["volume_attendu"], pd.Series(fc.index.date, index=fc.index), QUANTILES)
     q.columns = ["q01", "q10", "q50", "q90", "q99"]
     level = daily_level(extended, events, params=bundle.hybrid.sarimax_params).reindex(fc.index)
+    # Fourchette du TOTAL de la journee : quantiles de la somme simulee (et non somme des quantiles)
+    dates = pd.Series(fc.index.date, index=fc.index)
+    totals = bundle.predictive.sample(fc["volume_attendu"], dates, 4000, np.random.default_rng(0)).sum(axis=1)
+    q["total_q10"], q["total_q90"] = np.quantile(totals, 0.1), np.quantile(totals, 0.9)
     effects = contributions(bundle.hybrid, X.loc[fc.index]).add_prefix("effet:")
     return pd.concat([fc.rename(columns={"volume_attendu": "attendu", "aht_attendue": "aht"}), q,
                       (level * len(fc)).rename("niveau_jour"), effects], axis=1)

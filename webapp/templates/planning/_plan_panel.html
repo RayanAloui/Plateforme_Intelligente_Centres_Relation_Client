@@ -39,6 +39,7 @@
       <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Service level attendu</dt><dd class="mt-1 font-semibold">{% widthratio plan.expected_service_level 1 100 %} %</dd></div>
       <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Sous-capacité max.</dt><dd class="mt-1 font-semibold {% if plan.max_undercap_probability >= 0.2 %}text-rose-600{% elif plan.max_undercap_probability >= 0.1 %}text-amber-600{% else %}text-emerald-600{% endif %}">{% widthratio plan.max_undercap_probability 1 100 %} %</dd></div>
     </dl>
+    {% if plan.kind == "scenario" %}<p class="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i data-lucide="flask-conical" class="mt-0.5 h-3.5 w-3.5 shrink-0"></i>Vacations conçues pour le scénario « {{ plan.scenario.description }} ». Les indicateurs ci-dessous l'évaluent sur la prévision de référence, pour le comparer aux autres plannings de la journée.</p>{% endif %}
     {% with v=plan.details.vacations %}{% if v %}
     <p class="mt-3 text-xs text-slate-500">{{ v.types }} types de vacations · {{ v.agents }} agents · {{ v.heures_payees|floatformat:"0" }} h payées · solveur {{ v.statut_solveur }}{% if v.ecart_optimum_pct %} (à moins de {{ v.ecart_optimum_pct }} % de l'optimum){% endif %}{% if plan.details.prix_des_vacations_pct is not None %} · prix des vacations : +{{ plan.details.prix_des_vacations_pct }} % par rapport au besoin idéal{% endif %}</p>
     {% endif %}{% endwith %}

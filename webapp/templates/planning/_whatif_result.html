@@ -1,0 +1,32 @@
+<section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h3 class="font-semibold text-slate-900">Scénario : {{ label }}</h3>
+    {% if can_convert %}
+    <form hx-post="{% url 'whatif_convert' %}" hx-indicator="#convert-loading" hx-disabled-elt="find button">
+      {% for k, v in post.items %}{% if k != "csrfmiddlewaretoken" %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+      <button class="inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-100 disabled:opacity-60"><i data-lucide="calendar-plus" class="h-4 w-4"></i>Transformer en planning</button>
+      <span id="convert-loading" class="htmx-indicator ml-2 text-xs text-slate-500">Construction des vacations…</span>
+    </form>
+    {% elif scenario.budget_cut %}<span class="text-xs text-slate-500">Un scénario de réduction budgétaire s'ajuste à la main dans la page Planning.</span>{% endif %}
+  </div>
+  <dl class="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-6">
+    <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Heures d'agents</dt><dd class="mt-1 text-lg font-semibold">{{ res.heures_agents|floatformat:"0g" }} h</dd><dd class="text-xs {% if delta.heures_agents > 0 %}text-rose-600{% elif delta.heures_agents < 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">{% if delta.heures_agents > 0 %}+{% endif %}{{ delta.heures_agents|floatformat:"0g" }} h</dd></div>
+    <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Coût des agents</dt><dd class="mt-1 text-lg font-semibold">{{ res.cout_agents|floatformat:"0g" }} €</dd><dd class="text-xs {% if delta.cout_agents > 0 %}text-rose-600{% elif delta.cout_agents < 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">{% if delta.cout_agents > 0 %}+{% endif %}{{ delta.cout_agents|floatformat:"0g" }} €</dd></div>
+    <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Perte attendue</dt><dd class="mt-1 text-lg font-semibold">{{ res.perte_attendue|floatformat:"0g" }} €</dd><dd class="text-xs {% if delta.perte_attendue > 0 %}text-rose-600{% elif delta.perte_attendue < 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">{% if delta.perte_attendue > 0 %}+{% endif %}{{ delta.perte_attendue|floatformat:"0g" }} €</dd></div>
+    <div class="rounded-xl bg-brand-50 p-3"><dt class="text-xs text-brand-700">Coût total attendu</dt><dd class="mt-1 text-lg font-semibold text-brand-900">{{ res.cout_total_attendu|floatformat:"0g" }} €</dd><dd class="text-xs {% if delta.cout_total_attendu > 0 %}text-rose-600{% elif delta.cout_total_attendu < 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">{% if delta.cout_total_attendu > 0 %}+{% endif %}{{ delta.cout_total_attendu|floatformat:"0g" }} €</dd></div>
+    <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Pertes des 5 % pires jours</dt><dd class="mt-1 text-lg font-semibold">{{ res.ES95|floatformat:"0g" }} €</dd><dd class="text-xs {% if delta.ES95 > 0 %}text-rose-600{% elif delta.ES95 < 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">{% if delta.ES95 > 0 %}+{% endif %}{{ delta.ES95|floatformat:"0g" }} €</dd></div>
+    <div class="rounded-xl bg-slate-50 p-3"><dt class="text-xs text-slate-500">Service level attendu</dt><dd class="mt-1 text-lg font-semibold">{% widthratio res.service_level_attendu 1 100 %} %</dd><dd class="text-xs text-slate-500">référence : {% widthratio ref.service_level_attendu 1 100 %} %</dd></div>
+  </dl>
+  {% if res.proba_sous_capacite_max >= 0.2 %}
+  <div class="mt-4 flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700"><i data-lucide="triangle-alert" class="mt-0.5 h-4 w-4 shrink-0"></i>
+    {% if at_capacity and not scenario.budget_cut %}Même avec le planning optimal, la probabilité de sous-capacité atteint {% widthratio res.proba_sous_capacite_max 1 100 %} % vers {{ res.intervalle_le_plus_risque|date:"H\hi" }} : l'effectif maximal disponible devient la vraie contrainte. Ce scénario relève du recrutement (voir la page <a href="{% url 'capacity' %}" class="font-semibold underline">Capacité</a>), pas seulement du planning.
+    {% else %}La probabilité de sous-capacité atteint {% widthratio res.proba_sous_capacite_max 1 100 %} % vers {{ res.intervalle_le_plus_risque|date:"H\hi" }} : ce scénario expose le centre à un risque élevé.{% endif %}</div>
+  {% endif %}
+  {% if res.remarque %}<div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">{{ res.remarque|capfirst }}.</div>{% endif %}
+  {% if delta.cout_agents < 0 and delta.cout_total_attendu > 0 %}
+  <div class="mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"><i data-lucide="lightbulb" class="mt-0.5 h-4 w-4 shrink-0"></i>
+    L'économie sur les agents ({{ delta.cout_agents|floatformat:"0g" }} €) est plus que compensée par la hausse des pertes : le coût total augmente de {{ delta.cout_total_attendu|floatformat:"0g" }} €.</div>
+  {% endif %}
+  {{ chart|json_script:"whatif-data" }}
+  <div class="mt-4" data-chart="whatif" data-source="whatif-data"></div>
+</section>

@@ -1,0 +1,7 @@
+table,defaut,injectes,indicateur,valeur_%,reference_%
+acd,alt_timestamp_format,1051,dates relues,100.0,
+acd,duplicate,105,doublons supprimes,100.0,
+acd,missing_cell,228,cellules reconstituees a l'identique,44.7,
+acd,missing_row,158,erreur d'imputation du volume (WAPE),16.7,14.2
+acd,outlier,52,valeurs corrigees,100.0,
+wfm,missing_row,105,erreur d'imputation des agents presents (WAPE),5.9,

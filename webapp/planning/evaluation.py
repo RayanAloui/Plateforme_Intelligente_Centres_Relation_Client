@@ -27,6 +27,12 @@ def remember_model(version: str, day: date, model: OperationalRiskModel) -> None
     _MODELS[(version, day)] = model
 
 
+def risk_model_key() -> str:
+    """Identifie le contexte de calcul (modele actif, date de la plateforme) pour les caches."""
+    version = services.ModelVersion.objects.filter(is_active=True).values_list("version", flat=True).first()
+    return f"{version}-{platform_today()}"
+
+
 def risk_model(day: date | None = None) -> OperationalRiskModel:
     """Modele de risque de la journee planifiee, mis en cache."""
     version, bundle = services.active_bundle()

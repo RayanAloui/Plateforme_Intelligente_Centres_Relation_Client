@@ -9,6 +9,7 @@ urlpatterns = [
     path("deconnexion/", auth_views.LogoutView.as_view(), name="logout"),
     path("admin/", admin.site.urls),
     path("plateforme/", include("planning.urls")),
+    path("plateforme/alertes/", include("alerts.urls")),
     path("", include("portal.urls")),
 ]
 

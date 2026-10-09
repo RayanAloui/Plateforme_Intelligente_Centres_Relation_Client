@@ -1,5 +1,7 @@
 import pytest
 
+from datetime import timedelta
+
 from crc.config import get_settings
 from crc.db import read_sql
 
@@ -21,9 +23,11 @@ def test_all_tables_exist():
     assert EXPECTED_TABLES <= found, f"Manquant : {EXPECTED_TABLES - found}"
 
 
-def test_calendar_is_complete():
+def test_calendar_covers_the_history():
+    """La periode historique est complete (le cycle quotidien peut ensuite prolonger le calendrier)."""
     s = get_settings()
-    n = read_sql("SELECT COUNT(*) AS n FROM ref.calendar")["n"].iloc[0]
+    n = read_sql("SELECT COUNT(*) AS n FROM ref.calendar WHERE ts >= :a AND ts < :b",
+                 a=s.history_start_date, b=s.history_end_date + timedelta(days=1))["n"].iloc[0]
     days = (s.history_end_date - s.history_start_date).days + 1
     assert n == days * s.periods_per_day
 

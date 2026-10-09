@@ -18,4 +18,17 @@ def navigation(request):
         return {}
     match = getattr(request, "resolver_match", None)
     return {"menu": menu_for(request.user), "active_page": match.url_name if match else None,
-            "data_last": last_data_timestamp()}
+            "data_last": last_data_timestamp(), "open_alerts": open_alert_count()}
+
+
+def open_alert_count() -> int:
+    """Alertes non resolues pour la journee en cours et le lendemain (pastille du menu)."""
+    from alerts.models import Alert
+    from planning.models import PlatformState
+    try:
+        today = PlatformState.get().current_date
+        if today is None:
+            return 0
+        return Alert.objects.filter(date__gte=today).exclude(status=Alert.Status.RESOLVED).count()
+    except Exception:
+        return 0

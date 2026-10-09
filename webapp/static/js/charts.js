@@ -64,6 +64,53 @@
     },
   };
 
+  Object.assign(builders, {
+    whatif(d) {
+      const t = [
+        { x: d.x, y: d.reference, name: "planning de référence", line: { shape: "hv", color: "#94a3b8", width: 2 } },
+        { x: d.x, y: d.scenario, name: "planning du scénario", line: { shape: "hv", color: "#4f46e5", width: 3 } },
+      ];
+      return [t, layout({ height: 320, yaxis: Object.assign({}, BASE.yaxis, { title: "agents" }) })];
+    },
+    history(d) {
+      const t = [
+        { x: d.x, y: d.prevu, name: "prévu la veille", line: { color: "#4f46e5", width: 2.5 } },
+        { x: d.x, y: d.reel, name: "réalisé", mode: "lines+markers", line: { color: "#0f172a", width: 1.5 } },
+      ];
+      return [t, layout({ height: 300, xaxis: { gridcolor: "#f1f5f9", tickformat: "%d/%m" },
+        yaxis: Object.assign({}, BASE.yaxis, { title: "appels / jour" }) })];
+    },
+    gain(d) {
+      const t = [
+        { x: d.x, y: d.potentiel, name: "si les recommandations avaient été publiées", line: { color: "#94a3b8", width: 2, dash: "dot" } },
+        { x: d.x, y: d.gain, type: "scatter", fill: "tozeroy", name: "gain réalisé", line: { color: "#16a34a", width: 2.5 }, fillcolor: "rgba(22,163,74,0.12)" },
+      ];
+      return [t, layout({ height: 300, xaxis: { gridcolor: "#f1f5f9", tickformat: "%d/%m" },
+        yaxis: Object.assign({}, BASE.yaxis, { title: "€" }) })];
+    },
+    capacity(d) {
+      const t = [
+        { x: d.x, y: d.p975, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+        { x: d.x, y: d.p025, fill: "tonexty", fillcolor: "rgba(79,70,229,0.12)", line: { width: 0 }, name: "fourchette 95 %", hoverinfo: "skip" },
+        { x: d.x, y: d.p90, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+        { x: d.x, y: d.p10, fill: "tonexty", fillcolor: "rgba(79,70,229,0.28)", line: { width: 0 }, name: "fourchette 80 %", hoverinfo: "skip" },
+        { x: d.hist_x, y: d.hist, name: "historique", line: { color: "#0f172a", width: 2 } },
+        { x: d.x, y: d.p50, name: "prévision", line: { color: "#4f46e5", width: 2.5 } },
+      ];
+      return [t, layout({ height: 320, hovermode: "x", xaxis: { gridcolor: "#f1f5f9", tickformat: "%m/%Y" },
+        yaxis: Object.assign({}, BASE.yaxis, { title: "appels / mois" }) })];
+    },
+    capacityfte(d) {
+      const t = [
+        { x: d.x, y: d.etp_p90, line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+        { x: d.x, y: d.etp_p10, fill: "tonexty", fillcolor: "rgba(22,163,74,0.18)", line: { width: 0 }, name: "fourchette 80 %" },
+        { x: d.x, y: d.etp_p50, name: "ETP nécessaires", line: { color: "#16a34a", width: 2.5 } },
+      ];
+      return [t, layout({ height: 320, hovermode: "x", xaxis: { gridcolor: "#f1f5f9", tickformat: "%m/%Y" },
+        yaxis: Object.assign({}, BASE.yaxis, { title: "ETP", rangemode: "tozero" }) })];
+    },
+  });
+
   function renderCharts(root) {
     if (!window.Plotly) return;
     (root || document).querySelectorAll("[data-chart]").forEach((el) => {

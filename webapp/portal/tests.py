@@ -47,4 +47,4 @@ class PortalTests(TestCase):
 
     def test_upcoming_page_announces_its_step(self):
         self.login("manager")
-        self.assertContains(self.client.get(reverse("alerts")), "étape E")
+        self.assertContains(self.client.get(reverse("assistant")), "étape G")
