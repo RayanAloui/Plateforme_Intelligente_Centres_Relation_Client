@@ -47,9 +47,6 @@ def redundant(explanation: str, lead: str) -> bool:
     e, c = words(explanation), words(lead)
     return bool(e) and len(e & c) / len(e) > 0.7
 
-def nothing_to_add(explanation: str) -> bool:
-    """Le modele indique qu'il n'a rien a ajouter : la conclusion suffit."""
-    return explanation.strip().lower().startswith("le détail est disponible")
 
 def lead_text(points: list[str]) -> str:
     return " ".join(p[0].upper() + p[1:] + ("" if p.endswith(".") else ".") for p in points)
@@ -86,7 +83,7 @@ def answer(conversation: Conversation, text: str, client: OllamaClient | None = 
             # L'explication est ecartee : la conclusion de la plateforme reste juste et suffit.
             context["explication_ecartee"] = reply.text
             content = lead
-        elif lead and (redundant(reply.text, lead) or nothing_to_add(reply.text)):
+        elif lead and redundant(reply.text, lead):
             context["explication_redondante"] = reply.text
             content = lead
         else:

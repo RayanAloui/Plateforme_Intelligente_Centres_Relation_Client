@@ -64,16 +64,5 @@ def home(request):
     })
 
 
-def page(url_name: str):
-    """Page dont la construction est prevue a une etape ulterieure."""
-    item = ITEMS[url_name]
-
-    @role_required(*item.roles)
-    def view(request):
-        return render(request, "portal/coming_soon.html", {"item": item, "page_title": item.label})
-    view.__name__ = url_name
-    return view
-
-
 def forbidden(request, exception=None):
     return render(request, "403.html", status=403)

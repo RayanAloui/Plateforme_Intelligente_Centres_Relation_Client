@@ -1,3 +1,30 @@
+# Plateforme complete :  docker compose up -d --build
+#   db         PostgreSQL 16 (schemas ref, raw, core, features, app)
+#   web        application Django (gunicorn) sur http://localhost:8000
+#   scheduler  cycle quotidien automatique (profil "production" : docker compose --profile production up -d)
+#   ollama     modele de langue en conteneur, sur processeur (profil "ollama", si Ollama n'est pas installe sur la machine)
+# Par defaut, l'assistant utilise l'Ollama installe sur la machine hote (et donc sa carte graphique).
+
+x-app: &app
+  build: .
+  image: crc-platform:latest
+  env_file: .env
+  environment:
+    POSTGRES_HOST: db
+    POSTGRES_PORT: "5432"
+    OLLAMA_URL: ${OLLAMA_URL_DOCKER:-http://host.docker.internal:11434}
+    DJANGO_DEBUG: "0"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  volumes:
+    - ./data:/app/data
+    - ./models:/app/models
+    - ./outputs:/app/outputs
+  depends_on:
+    db:
+      condition: service_healthy
+  restart: unless-stopped
+
 services:
   db:
     image: postgres:16
@@ -18,5 +45,42 @@ services:
       timeout: 5s
       retries: 5
 
+  web:
+    <<: *app
+    container_name: crc_web
+    command: >
+      sh -c "python webapp/manage.py migrate --noinput &&
+             python webapp/manage.py collectstatic --noinput &&
+             gunicorn --pythonpath webapp config.wsgi:application --bind 0.0.0.0:8000
+             --workers 1 --threads 8 --timeout 300 --access-logfile -"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/connexion/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  scheduler:
+    <<: *app
+    container_name: crc_scheduler
+    profiles: ["production"]
+    command: python webapp/manage.py run_scheduler
+    depends_on:
+      web:
+        condition: service_healthy
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: crc_ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  ollama:

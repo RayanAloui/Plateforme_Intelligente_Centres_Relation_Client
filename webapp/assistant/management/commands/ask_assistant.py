@@ -24,8 +24,6 @@ class Command(BaseCommand):
         v = msg.context["verification"]
         self.stdout.write(self.style.MIGRATE_HEADING("Réponse") + f"  ({msg.model_name or 'hors ligne'}, {msg.latency_ms or 0} ms)")
         self.stdout.write(msg.content)
-        if msg.context.get("pages"):
-            self.stdout.write(f"\nPages à consulter : {', '.join(msg.context['pages'])}")
         if msg.context.get("explication_ecartee"):
             self.stdout.write(self.style.WARNING(f"\n(Explication du modèle écartée par le garde-fou : "
                                                  f"« {msg.context['explication_ecartee']} »)"))

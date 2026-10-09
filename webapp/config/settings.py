@@ -18,10 +18,23 @@ load_dotenv(PROJECT_DIR / ".env")
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-only-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+if not DEBUG and (SECRET_KEY.startswith(("dev-only", "change-me")) or len(SECRET_KEY) < 32):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("En production (DJANGO_DEBUG=0), definir DJANGO_SECRET_KEY : 32 caracteres ou plus.")
 # Mode demonstration : comptes affiches a la connexion, bouton "jour suivant" (etape C).
 DEMO_MODE = os.environ.get("DEMO_MODE", "1") == "1"
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-CSRF_TRUSTED_ORIGINS = [f"http://{h}:8000" for h in ALLOWED_HOSTS]
+CSRF_TRUSTED_ORIGINS = [f"{scheme}://{h}{port}" for h in ALLOWED_HOSTS
+                        for scheme in ("http", "https") for port in ("", ":8000")]
+
+# Derriere un proxy HTTPS (DJANGO_HTTPS=1) : cookies securises, HSTS, redirection vers HTTPS.
+if os.environ.get("DJANGO_HTTPS", "0") == "1":
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -102,3 +115,16 @@ STORAGES = {
 }
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
+
+SESSION_COOKIE_AGE = 12 * 3600                 # une journee de travail
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = "same-origin"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "{asctime} {levelname} {name} : {message}", "style": "{"}},
+    "handlers": {"console": {"class": "logging.StreamHandler", "formatter": "simple"}},
+    "root": {"handlers": ["console"], "level": "INFO" if not DEBUG else "WARNING"},
+    "loggers": {"planning": {"level": "INFO"}, "assistant": {"level": "INFO"}},
+}
