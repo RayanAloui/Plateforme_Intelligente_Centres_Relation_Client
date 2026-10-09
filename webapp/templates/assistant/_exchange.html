@@ -1,0 +1,6 @@
+{% for m in pair %}{% include "assistant/_message.html" %}{% endfor %}
+{% if new %}
+<div hx-swap-oob="beforeend:#ask"><input type="hidden" name="conversation" value="{{ conversation.pk }}"></div>
+<div hx-swap-oob="afterbegin:#conversation-list"><a href="{% url 'assistant_conversation' conversation.pk %}" class="block truncate rounded-lg bg-brand-50 px-2 py-2 text-sm font-medium text-brand-700">{{ conversation.title }}</a></div>
+<p id="no-conversation" hx-swap-oob="delete"></p>
+{% endif %}

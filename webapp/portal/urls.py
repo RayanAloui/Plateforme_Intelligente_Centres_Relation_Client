@@ -15,7 +15,6 @@ urlpatterns = [
     path("risque/", pages.risk_page, name="risk"),
     path("what-if/", scenarios.whatif_page, name="whatif"),
     path("historique/", insights.history_page, name="history"),
-    path("assistant/", views.page("assistant"), name="assistant"),
     path("administration/parametres/", engine_views.parameters_page, name="settings"),
     path("administration/parametres/enregistrer/", engine_views.parameters_save, name="settings_save"),
     path("administration/modeles/", monitoring.models_page, name="models"),

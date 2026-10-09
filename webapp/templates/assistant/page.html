@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid gap-6 lg:grid-cols-[16rem_1fr]">
+  <aside class="space-y-3">
+    <a href="{% url 'assistant' %}" class="flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-3 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"><i data-lucide="message-square-plus" class="h-4 w-4"></i>Nouvelle conversation</a>
+    <div class="rounded-2xl border border-slate-200 bg-white p-2 shadow-sm">
+      <p class="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Mes conversations</p>
+      <div id="conversation-list"></div>
+      {% for c in conversations %}
+      <a href="{% url 'assistant_conversation' c.pk %}" class="block truncate rounded-lg px-2 py-2 text-sm {% if current and c.pk == current.pk %}bg-brand-50 font-medium text-brand-700{% else %}text-slate-600 hover:bg-slate-50{% endif %}">{{ c.title|default:"Sans titre" }}</a>
+      {% empty %}<p id="no-conversation" class="px-2 py-2 text-xs text-slate-400">Aucune conversation.</p>{% endfor %}
+    </div>
+    <div class="rounded-2xl border p-3 text-xs {% if status.online and status.installed %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %}">
+      {% if status.online and status.installed %}
+        <p class="flex items-center gap-1.5 font-semibold"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Ollama connecté</p><p class="mt-1">Modèle local : {{ status.model }}</p>
+      {% elif status.online %}
+        <p class="font-semibold">Modèle absent</p><p class="mt-1">Lancez <code>ollama pull {{ status.model }}</code>. En attendant, l'assistant affiche les données sans rédaction.</p>
+      {% else %}
+        <p class="font-semibold">Ollama hors ligne</p><p class="mt-1">L'assistant affiche les données de la plateforme sans rédaction. Démarrez Ollama pour des réponses rédigées.</p>
+      {% endif %}
+    </div>
+  </aside>
+
+  <section class="flex min-h-[70vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div id="messages" class="flex-1 space-y-5 overflow-y-auto p-5">
+      {% if messages_list %}
+        {% for m in messages_list %}{% include "assistant/_message.html" %}{% endfor %}
+      {% else %}
+      <div id="welcome" class="mx-auto max-w-xl py-10 text-center">
+        <span class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="sparkles" class="h-6 w-6"></i></span>
+        <h2 class="mt-4 text-lg font-semibold text-slate-900">Posez votre question sur la plateforme</h2>
+        <p class="mt-1 text-sm text-slate-500">L'assistant répond uniquement à partir des chiffres calculés par la plateforme, et vous montre les données utilisées.</p>
+        <div class="mt-6 grid gap-2 sm:grid-cols-2">
+          {% for s in suggestions %}
+          <button type="button" onclick="const f=document.getElementById('ask'); f.question.value=this.innerText; f.requestSubmit();" class="rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm text-slate-700 hover:border-brand-200 hover:bg-brand-50">{{ s }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+    <form id="ask" hx-post="{% url 'assistant_ask' %}" hx-target="#messages" hx-swap="beforeend" hx-indicator="#thinking" hx-disabled-elt="find button"
+          hx-on::before-request="document.getElementById('welcome')?.remove()" hx-on::after-request="this.question.value=''; document.getElementById('messages').scrollTop = 1e9"
+          class="border-t border-slate-100 p-4">
+      {% if current %}<input type="hidden" name="conversation" value="{{ current.pk }}">{% endif %}
+      <p id="thinking" class="htmx-indicator mb-2 flex items-center gap-2 text-sm text-slate-500"><i data-lucide="loader-circle" class="h-4 w-4 animate-spin"></i>L'assistant rassemble les données et rédige sa réponse…</p>
+      <div class="flex gap-2">
+        <input name="question" required maxlength="500" autocomplete="off" placeholder="Ex. : pourquoi le risque est élevé demain à 14h ?" class="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-100">
+        <button class="grid h-12 w-12 place-items-center rounded-xl bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-60" title="Envoyer"><i data-lucide="send-horizontal" class="h-5 w-5"></i></button>
+      </div>
+    </form>
+  </section>
+</div>
+{% endblock %}

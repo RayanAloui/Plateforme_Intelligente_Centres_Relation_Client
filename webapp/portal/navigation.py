@@ -54,7 +54,7 @@ SECTIONS = [
         NavItem("Historique", "history", "history",
                 summary="Ce qui était prévu, ce qui a été décidé, ce qui s'est passé.",
                 features=("Prévu vs réalisé", "Décisions et ajustements", "Qualité des recommandations")),
-        NavItem("Assistant IA", "assistant", "sparkles", step="G",
+        NavItem("Assistant IA", "assistant", "sparkles",
                 summary="Posez vos questions en français sur les chiffres de la plateforme.",
                 features=("Modele local Ollama", "Réponses fondées sur les données en base",
                           "Aucun chiffre inventé")),

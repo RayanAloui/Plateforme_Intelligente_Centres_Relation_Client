@@ -45,6 +45,6 @@ class PortalTests(TestCase):
         for name in ITEMS:
             self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
 
-    def test_upcoming_page_announces_its_step(self):
-        self.login("manager")
-        self.assertContains(self.client.get(reverse("assistant")), "étape G")
+    def test_every_page_is_now_delivered(self):
+        from portal.navigation import ITEMS
+        self.assertFalse([name for name, item in ITEMS.items() if item.step])

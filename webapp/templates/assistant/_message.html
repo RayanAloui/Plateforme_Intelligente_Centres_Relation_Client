@@ -1,0 +1,26 @@
+{% if m.role == "user" %}
+<div class="flex justify-end"><div class="max-w-[80%] rounded-2xl rounded-br-md bg-brand-600 px-4 py-2.5 text-sm text-white">{{ m.content }}</div></div>
+{% else %}
+<div class="flex gap-3" x-data="{ open: false }">
+  <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600"><i data-lucide="bot" class="h-4 w-4"></i></span>
+  <div class="min-w-0 max-w-[85%]">
+    <div class="whitespace-pre-line rounded-2xl rounded-tl-md bg-slate-50 px-4 py-3 text-sm leading-relaxed text-slate-800">{{ m.content }}</div>
+    <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+      {% with v=m.context.verification %}
+      {% if v.hors_ligne %}<span class="inline-flex items-center gap-1 text-amber-700"><i data-lucide="database" class="h-3.5 w-3.5"></i>Données brutes (modèle indisponible)</span>
+      {% elif v.verified %}<span class="inline-flex items-center gap-1 text-emerald-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i>Vérifié : {% if v.numbers %}les {{ v.numbers }} chiffres viennent{% else %}aucun chiffre hors{% endif %} de la plateforme</span>
+      {% else %}<span class="inline-flex items-center gap-1 font-semibold text-rose-700"><i data-lucide="triangle-alert" class="h-3.5 w-3.5"></i>À vérifier : {{ v.unknown|length }} chiffre{{ v.unknown|length|pluralize }} absent{{ v.unknown|length|pluralize }} des données ({{ v.unknown|join:", " }})</span>{% endif %}
+      {% endwith %}
+      <button type="button" @click="open = !open" class="font-medium text-brand-600 hover:text-brand-700" x-text="open ? 'Masquer les données utilisées' : 'Voir les données utilisées'"></button>
+      {% if m.latency_ms %}<span class="text-slate-400">{{ m.model_name }} · {{ m.latency_ms|floatformat:"0" }} ms</span>{% endif %}
+      {% for p in m.context.pages %}<span class="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{{ p }}</span>{% endfor %}
+    </div>
+    <div x-show="open" x-cloak class="mt-2 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600">
+      {% for title, lines in m.context.fiche.items %}
+      <p class="font-semibold text-slate-700 {% if not forloop.first %}mt-2{% endif %}">{{ title }}</p>
+      <ul class="mt-1 space-y-0.5">{% for l in lines %}<li>• {{ l }}</li>{% endfor %}</ul>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endif %}
