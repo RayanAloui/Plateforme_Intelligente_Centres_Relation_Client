@@ -23,8 +23,9 @@ from crc.ops import simulator
 from crc.ops.ingest import import_day, record_events
 from crc.ops.outlook import compute_outlook, detect_anomalies
 from crc.risk.costs import load_costs
+from crc.optim.shifts import shifts_frame
 from planning.models import (DailyForecast, Decision, IntervalForecast, ModelVersion, PipelineRun,
-                             PlanInterval, PlatformState, StaffingPlan)
+                             PlanInterval, PlatformState, Shift, StaffingPlan)
 
 LEVELS = {"Moyen": Alert.Level.MEDIUM, "Eleve": Alert.Level.HIGH}
 _BUNDLES: dict = {}
@@ -102,7 +103,7 @@ def persist_outlook(outlook, run, model_version) -> dict:
     Alert.objects.filter(date=day, source=Alert.Source.RISK, status=Alert.Status.NEW).delete()
     auto.delete()
 
-    need = outlook.plans["recommande"].agents
+    need = outlook.ideal.agents
     # Le planning de l'outil WFM est celui en vigueur, sauf si un planning a deja ete publie a la main.
     in_force = StaffingPlan.Status.SUPERSEDED if StaffingPlan.objects.filter(
         date=day, status=StaffingPlan.Status.PUBLISHED).exists() else StaffingPlan.Status.PUBLISHED
@@ -121,12 +122,38 @@ def persist_outlook(outlook, run, model_version) -> dict:
                                 comment="Créé automatiquement par le cycle quotidien")
         plans[kind] = plan
 
+    persist_shifts(plans["recommande"], outlook)
+
     for _, a in outlook.alerts.iterrows():
         Alert.objects.create(date=day, start=a["debut"], end=a["fin"], level=LEVELS[a["niveau"]],
                              source=Alert.Source.RISK, plan=plans["actuel"],
                              undercap_probability=a["proba_sous_capacite_max"], expected_loss=a["perte_attendue"],
                              recommended_reinforcement=a["renfort_recommande"], message=alert_message(a))
     return plans
+
+
+def shift_details(outlook) -> dict:
+    """Synthese des vacations et prix de la contrainte de vacations (vs besoin ideal)."""
+    sol, ideal, rec = outlook.shifts, outlook.ideal.summary, outlook.plans["recommande"].summary
+    ideal_total = ideal["cost_agents"] + ideal["expected_loss"]
+    shifts_total = rec["cost_agents"] + rec["expected_loss"]
+    return {
+        "vacations": {"types": int(len(sol.shifts)), "agents": int(sol.shifts["agents"].sum()),
+                      "heures_payees": sol.paid_hours, "statut_solveur": sol.status,
+                      "ecart_optimum_pct": round(100 * sol.gap, 2), "duree_calcul_s": sol.solve_seconds},
+        "besoin_ideal": {"heures": ideal["agent_hours"], "cout_agents": round(ideal["cost_agents"], 2),
+                         "perte_attendue": round(ideal["expected_loss"], 2), "cout_total": round(ideal_total, 2)},
+        "prix_des_vacations": round(shifts_total - ideal_total, 2),
+        "prix_des_vacations_pct": round(100 * (shifts_total - ideal_total) / ideal_total, 2),
+    }
+
+
+def persist_shifts(plan: StaffingPlan, outlook) -> None:
+    frame = shifts_frame(outlook.shifts, pd.Timestamp(outlook.day))
+    Shift.objects.bulk_create([Shift(plan=plan, start=r.debut, end=r.fin, agents=int(r.agents))
+                               for r in frame.itertuples()])
+    plan.details = shift_details(outlook)
+    plan.save(update_fields=["details"])
 
 
 def plan_next_day(day: date, run: PipelineRun | None = None) -> dict:
@@ -137,7 +164,8 @@ def plan_next_day(day: date, run: PipelineRun | None = None) -> dict:
         outlook = compute_outlook(bundle, history, events, day, current, costs)
         plans = persist_outlook(outlook, run, version)
         s.update({"jour": f"{day:%d/%m/%Y}", "appels_prevus": round(outlook.forecast["attendu"].sum()),
-                  "alertes": len(outlook.alerts)})
+                  "alertes": len(outlook.alerts), "vacations": int(len(outlook.shifts.shifts)),
+                  "solveur": outlook.shifts.status})
     return plans
 
 

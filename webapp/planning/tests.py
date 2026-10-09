@@ -157,3 +157,24 @@ class CycleViewTests(TestCase):
     def test_home_explains_how_to_initialise(self):
         self.client.login(username="manager", password="Demo2024!")
         self.assertContains(self.client.get(reverse("home")), "init_platform")
+
+
+class ShiftDetailsTests(TestCase):
+    def test_price_of_shifts_is_measured_against_the_ideal_need(self):
+        from types import SimpleNamespace
+
+        import pandas as pd
+
+        from planning.services import shift_details
+        summary = lambda cost, loss, hours: {"cost_agents": cost, "expected_loss": loss, "agent_hours": hours}
+        outlook = SimpleNamespace(
+            shifts=SimpleNamespace(shifts=pd.DataFrame({"agents": [10, 5]}), paid_hours=120.0,
+                                   status="OPTIMAL", gap=0.0, solve_seconds=1.2),
+            ideal=SimpleNamespace(summary=summary(3000.0, 1000.0, 110.0)),
+            plans={"recommande": SimpleNamespace(summary=summary(3360.0, 720.0, 120.0))},
+        )
+        d = shift_details(outlook)
+        self.assertEqual(d["vacations"]["types"], 2)
+        self.assertEqual(d["vacations"]["agents"], 15)
+        self.assertEqual(d["prix_des_vacations"], 80.0)            # 4 080 - 4 000
+        self.assertEqual(d["prix_des_vacations_pct"], 2.0)

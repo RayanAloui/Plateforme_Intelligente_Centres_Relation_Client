@@ -12,12 +12,14 @@ import pandas as pd
 from crc.app.alerts import build_alerts, interval_levels
 from crc.forecasting.features import build_features
 from crc.forecasting.registry import ForecastBundle, future_frame
+from crc.optim.shifts import ShiftSolution, schedule_shifts
 from crc.optim.staffing import build_curves, deterministic_plan, risk_aware_plan
 from crc.risk.costs import INTERVAL_SECONDS, estimate_patience
 from crc.risk.simulation import OperationalRiskModel, expected_shortfall, var
 
 QUANTILES = (0.01, 0.1, 0.5, 0.9, 0.99)
 N_SCENARIOS = 1000
+OFFSETS = np.arange(-3, 13)          # effectifs candidats : assez larges pour que les vacations puissent deborder
 
 
 @dataclass
@@ -35,6 +37,8 @@ class DayOutlook:
     forecast: pd.DataFrame             # attendu, quantiles, AHT
     plans: dict                        # "actuel", "recommande" -> PlanOutlook
     alerts: pd.DataFrame
+    shifts: ShiftSolution              # vacations du planning recommande
+    ideal: PlanOutlook                 # besoin demi-heure par demi-heure, sans contrainte de vacation
 
 
 def risk_model_for(bundle: ForecastBundle, history: pd.DataFrame, costs: dict) -> OperationalRiskModel:
@@ -86,18 +90,21 @@ def compute_outlook(bundle: ForecastBundle, history: pd.DataFrame, events: pd.Da
     mu, aht = forecast["attendu"], forecast["aht"]
     seed = int(pd.Timestamp(day).strftime("%Y%m%d"))
 
+    alpha = costs.get("risk_alpha", 0.05)
     center = deterministic_plan(mu, aht, float(model.absence_rates.mean()), model.patience, costs)
-    curves = build_curves(model, mu, aht, center, 100, seed=seed)
-    recommended = risk_aware_plan(curves, costs, costs.get("risk_alpha", 0.05))
+    curves = build_curves(model, mu, aht, center, 100, seed=seed, offsets=OFFSETS)
+    need = risk_aware_plan(curves, costs, alpha)                  # optimum demi-heure par demi-heure
+    shifts = schedule_shifts(curves, costs, alpha)                # traduit en vacations reelles
     actual = current_plan.reindex(mu.index).ffill().bfill().astype(int).to_numpy()
 
     plans = {"actuel": evaluate_plan(model, forecast, actual, seed),
-             "recommande": evaluate_plan(model, forecast, recommended, seed)}
+             "recommande": evaluate_plan(model, forecast, shifts.coverage, seed)}
+    ideal = evaluate_plan(model, forecast, need, seed)
     level = interval_levels(plans["actuel"].undercap, high=costs.get("alert_high_threshold", 0.20),
                             medium=costs.get("alert_medium_threshold", 0.10))
     alerts = build_alerts(level, plans["actuel"].undercap, plans["actuel"].expected_loss,
                           plans["actuel"].agents, plans["recommande"].agents)
-    return DayOutlook(day, forecast, plans, alerts)
+    return DayOutlook(day, forecast, plans, alerts, shifts, ideal)
 
 
 def detect_anomalies(bundle: ForecastBundle, expected: pd.Series, observed: pd.Series) -> pd.DataFrame:

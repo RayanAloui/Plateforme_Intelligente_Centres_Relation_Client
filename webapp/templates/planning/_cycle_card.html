@@ -29,6 +29,9 @@
           <p class="mt-1 text-lg font-semibold text-slate-900">{{ cycle.recommended.expected_total_cost|floatformat:"0g" }} €</p>
           <p class="text-xs {% if cycle.saving > 0 %}text-emerald-600{% else %}text-slate-500{% endif %}">
             planning recommandé · {% if cycle.saving > 0 %}−{{ cycle.saving|floatformat:"0g" }} € vs actuel{% else %}actuel : {{ cycle.current.expected_total_cost|floatformat:"0g" }} €{% endif %}</p>
+          {% with v=cycle.recommended.details.vacations %}{% if v %}
+          <p class="mt-1 text-xs text-slate-500">{{ v.types }} types de vacations · {{ v.agents }} agents</p>
+          {% endif %}{% endwith %}
         </div>
         <div class="rounded-xl bg-slate-50 p-4">
           <p class="text-xs text-slate-500">Alertes pour demain</p>

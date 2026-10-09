@@ -167,6 +167,8 @@ class StaffingPlan(models.Model):
     es95 = models.FloatField(null=True)
     expected_service_level = models.FloatField(null=True)
     max_undercap_probability = models.FloatField(null=True)
+    details = models.JSONField(default=dict, blank=True,
+                               help_text="Vacations (solveur, ecart a l'optimum), comparaison au besoin ideal")
 
     class Meta:
         ordering = ["-date", "-created_at"]
