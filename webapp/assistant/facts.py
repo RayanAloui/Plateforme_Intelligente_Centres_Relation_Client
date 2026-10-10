@@ -233,6 +233,12 @@ def key_points(question) -> list[str]:
             points.append(f"À {row.ts:%Hh%M}, le risque de sous-capacité est {level} : "
                           f"{pct(row.undercap_probability)} avec le planning en vigueur, qui prévoit "
                           f"{row.agents_scheduled} agents pour un besoin de {row.agents_required}")
+            gap = row.agents_required - row.agents_scheduled
+            if gap > 0:
+                agents = f"{gap} agent{'s' if gap > 1 else ''}"
+                points.append(f"Le planning en vigueur prévoit {agents} de moins que l'effectif recommandé "
+                              f"à {row.ts:%Hh%M} (qui inclut une marge de prudence) : le risque reste {level}, "
+                              f"mais un renfort de {agents} le réduirait")
         if worst and (row is None or worst.pk != row.pk) and ("risque" in asked or row is not None):
             points.append(f"Le moment le plus risqué de la journée est {worst.ts:%Hh%M} "
                           f"({pct(worst.undercap_probability)}, risque {level_of(worst.undercap_probability or 0)})")

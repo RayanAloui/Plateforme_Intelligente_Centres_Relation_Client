@@ -4,7 +4,7 @@ import re
 from django.utils import timezone
 
 from assistant.facts import build_sheet, render_sheet
-from assistant.guard import verify
+from assistant.guard import numbers, verify
 from assistant.llm import OllamaClient, OllamaUnavailable
 from assistant.models import Conversation, Message
 from assistant.understanding import understand
@@ -48,6 +48,17 @@ def redundant(explanation: str, lead: str) -> bool:
     return bool(e) and len(e & c) / len(e) > 0.7
 
 
+def nothing_to_add(explanation: str) -> bool:
+    """Le modele indique qu'il n'a rien a ajouter : la conclusion suffit."""
+    return explanation.strip().lower().startswith("le détail est disponible")
+
+
+def no_new_figures(explanation: str, lead: str) -> bool:
+    """L'explication ne cite que des chiffres deja dans la conclusion : elle ne peut que les paraphraser."""
+    used = set(numbers(explanation))
+    return bool(used) and used <= set(numbers(lead))
+
+
 def lead_text(points: list[str]) -> str:
     return " ".join(p[0].upper() + p[1:] + ("" if p.endswith(".") else ".") for p in points)
 
@@ -83,7 +94,8 @@ def answer(conversation: Conversation, text: str, client: OllamaClient | None = 
             # L'explication est ecartee : la conclusion de la plateforme reste juste et suffit.
             context["explication_ecartee"] = reply.text
             content = lead
-        elif lead and redundant(reply.text, lead):
+        elif lead and (redundant(reply.text, lead) or nothing_to_add(reply.text)
+                       or no_new_figures(reply.text, lead)):
             context["explication_redondante"] = reply.text
             content = lead
         else:

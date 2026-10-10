@@ -55,4 +55,6 @@ class Command(BaseCommand):
             self.stdout.write(f"Déjà initialisée (date de la plateforme : {PlatformState.get().current_date:%d/%m/%Y}).")
         else:
             call_command("init_platform")
-        self.stdout.write(self.style.SUCCESS("\nPlateforme prête : http://localhost:8000"))
+        self.stdout.write(self.style.SUCCESS("\nPlateforme prête."))
+        self.stdout.write("Pour l'ouvrir : python webapp/manage.py runserver, puis http://127.0.0.1:8000\n"
+                          "(avec Docker, le service web la sert déjà sur http://localhost:8000)")

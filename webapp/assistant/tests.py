@@ -120,6 +120,28 @@ class AssistantTests(TestCase):
         self.assertNotIn("586", bad.content)                     # explication ecartee par le garde-fou
         self.assertIn("586", bad.context["explication_ecartee"])
 
+    def test_explanation_without_new_figures_is_not_shown(self):
+        conv = Conversation.objects.create(user=self.manager)
+        msg = answer(conv, "Combien d'appels demain ?", FakeClient("Cela représente 4 800 appels, à 4 800 près."))
+        self.assertNotIn("à 4 800 près", msg.content)                 # ne cite que des chiffres de la conclusion
+        self.assertIn("explication_redondante", msg.context)
+
+    def test_shortfall_is_explained_in_the_conclusion(self):
+        from planning.models import StaffingPlan
+        plan = StaffingPlan.objects.get(kind="actuel")
+        plan.intervals.filter(ts__hour=14, ts__minute=0).update(agents_scheduled=18, undercap_probability=0.09)
+        points = " ".join(build_sheet(understand("Et le risque demain à 14h ?", TODAY))["À retenir"])
+        self.assertIn("prévoit 2 agents de moins que l'effectif recommandé à 14h00", points)
+        self.assertIn("le risque reste faible", points)
+
+    def test_terminal_questions_do_not_clutter_conversations(self):
+        with mock.patch("assistant.management.commands.ask_assistant.OllamaClient",
+                        return_value=FakeClient(fail=True)):
+            call_command("ask_assistant", "Combien d'appels demain ?", stdout=StringIO())
+            self.assertFalse(Conversation.objects.exists())
+            call_command("ask_assistant", "Combien d'appels demain ?", "--keep", stdout=StringIO())
+            self.assertEqual(Conversation.objects.count(), 1)
+
     def test_explanation_that_only_repeats_is_not_shown(self):
         conv = Conversation.objects.create(user=self.manager)
         lead = "Aucun renfort n'est nécessaire demain : le planning en vigueur couvre le besoin"
@@ -143,7 +165,7 @@ class AssistantTests(TestCase):
             r = self.client.post(reverse("assistant_ask"), {"question": "Combien d'appels demain ?"})
         conv = Conversation.objects.get(user=self.manager)
         self.assertEqual(r["HX-Push-Url"], reverse("assistant_conversation", args=[conv.pk]))
-        self.assertContains(r, "Vérifié")
+        self.assertContains(r, "Conclusion calculée par la plateforme")     # explication sans chiffre nouveau
         self.assertEqual(Message.objects.filter(conversation=conv).count(), 2)
 
     def test_conversations_are_private(self):
